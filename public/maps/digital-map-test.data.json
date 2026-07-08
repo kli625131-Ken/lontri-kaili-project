@@ -1,0 +1,1146 @@
+{
+	"Map": {
+		"MapId": "024eb626-155a-4c24-949d-16238eaf0162",
+		"FloorId": "be5f3560-c683-4073-ace3-9e0e70cd5ff3",
+		"DeviceMapId": "00000000-0000-0000-0000-000000000000",
+		"MapName": "一层数字地图",
+		"SvgUrl": "/resource/maps/BE5F3560-C683-4073-ACE3-9E0E70CD5FF3/05a55c49813d46ec81049767ba1001a7.svg",
+		"SvgFilePath": null,
+		"SvgHash": null,
+		"ViewBox": {
+			"X": 0,
+			"Y": 0,
+			"Width": 800,
+			"Height": 600
+		},
+		"CoordinateTransform": {
+			"Type": "bounds",
+			"A": 0.050372999932,
+			"B": 0,
+			"C": 150.498944671093,
+			"D": 0,
+			"E": -0.050371494215,
+			"F": 645.512818207602,
+			"CadBounds": {
+				"MinX": 2471.5831,
+				"MinY": 1670.0481,
+				"MaxX": 7623.1524,
+				"MaxY": 11231.4083,
+				"Width": 5151.5693,
+				"Height": 9561.3602
+			},
+			"SvgBounds": {
+				"MinX": 275,
+				"MinY": 79.77,
+				"MaxX": 534.5,
+				"MaxY": 561.39,
+				"Width": 259.5,
+				"Height": 481.62
+			},
+			"Source": "SVG_DRAWABLE_BOUNDS",
+			"FlipY": true
+		},
+		"Version": 2,
+		"Status": "ENABLED"
+	},
+	"Regions": [
+		{
+			"Id": "405e1886-844b-4d7e-a604-01e282a94b28",
+			"Code": "GWGIH#0101",
+			"Name": "GWGIH#0101",
+			"Points": [
+				{
+					"X": 2471.5831,
+					"Y": 1670.0481
+				},
+				{
+					"X": 7623.1524,
+					"Y": 1670.0481
+				},
+				{
+					"X": 7623.1524,
+					"Y": 11231.4083
+				},
+				{
+					"X": 2471.5831,
+					"Y": 11231.4083
+				}
+			],
+			"SvgPoints": [
+				{
+					"X": 275,
+					"Y": 561.39
+				},
+				{
+					"X": 534.5,
+					"Y": 561.39
+				},
+				{
+					"X": 534.5,
+					"Y": 79.77
+				},
+				{
+					"X": 275,
+					"Y": 79.77
+				}
+			],
+			"CadBounds": {
+				"MinX": 2471.5831,
+				"MinY": 1670.0481,
+				"MaxX": 7623.1524,
+				"MaxY": 11231.4083,
+				"Width": 5151.5693,
+				"Height": 9561.3602
+			},
+			"SourceRows": [
+				2,
+				3,
+				5,
+				4
+			],
+			"Color": null,
+			"MemberIds": [
+				"6df3c9ab-ff44-428c-867b-e3d4fb535393",
+				"80a0f416-732a-4bbd-84ca-9e7aa099c0f5",
+				"cc703070-5b5c-481e-a474-5fc6e88ccf16",
+				"d998f33b-2db4-461e-8f83-4f2b178053c7",
+				"ec685b89-587e-44f6-85cb-f4dbb67b8be8",
+				"9f32718e-2282-4150-adc7-76c80b8047ce",
+				"abedac30-1a0a-4bd6-8628-2003bffc8d52",
+				"bb7f054b-82c4-4b0d-81d3-fa6f62994bad",
+				"04545885-dbae-4ea3-8372-7be6368fab83"
+			]
+		},
+		{
+			"Id": "92ab68fc-63af-47dc-aa00-0b725272a35a",
+			"Code": "总图 Y轴最大点",
+			"Name": "总图 Y轴最大点",
+			"Points": [
+				{
+					"X": 2471.5831,
+					"Y": 1670.0481
+				}
+			],
+			"SvgPoints": [
+				{
+					"X": 275,
+					"Y": 561.39
+				}
+			],
+			"CadBounds": {
+				"MinX": 2471.5831,
+				"MinY": 1670.0481,
+				"MaxX": 2471.5831,
+				"MaxY": 1670.0481,
+				"Width": 0,
+				"Height": 0
+			},
+			"SourceRows": [
+				15
+			],
+			"Color": null,
+			"MemberIds": []
+		},
+		{
+			"Id": "03ae6dbc-21cd-4f2b-8bdf-4e6d4e3b5103",
+			"Code": "总图 XY轴最大点",
+			"Name": "总图 XY轴最大点",
+			"Points": [
+				{
+					"X": 7623.1524,
+					"Y": 1670.0481
+				}
+			],
+			"SvgPoints": [
+				{
+					"X": 534.5,
+					"Y": 561.39
+				}
+			],
+			"CadBounds": {
+				"MinX": 7623.1524,
+				"MinY": 1670.0481,
+				"MaxX": 7623.1524,
+				"MaxY": 1670.0481,
+				"Width": 0,
+				"Height": 0
+			},
+			"SourceRows": [
+				16
+			],
+			"Color": null,
+			"MemberIds": []
+		},
+		{
+			"Id": "0b9e357e-579a-49ff-a204-e389739bef22",
+			"Code": "总图 ",
+			"Name": "总图 ",
+			"Points": [
+				{
+					"X": 2471.5831,
+					"Y": 11231.4083
+				}
+			],
+			"SvgPoints": [
+				{
+					"X": 275,
+					"Y": 79.77
+				}
+			],
+			"CadBounds": {
+				"MinX": 2471.5831,
+				"MinY": 11231.4083,
+				"MaxX": 2471.5831,
+				"MaxY": 11231.4083,
+				"Width": 0,
+				"Height": 0
+			},
+			"SourceRows": [
+				17
+			],
+			"Color": null,
+			"MemberIds": []
+		},
+		{
+			"Id": "805880c4-66ba-441e-a56c-2c6af22d5413",
+			"Code": "总图 X轴最大点",
+			"Name": "总图 X轴最大点",
+			"Points": [
+				{
+					"X": 7623.1524,
+					"Y": 11231.4083
+				}
+			],
+			"SvgPoints": [
+				{
+					"X": 534.5,
+					"Y": 79.77
+				}
+			],
+			"CadBounds": {
+				"MinX": 7623.1524,
+				"MinY": 11231.4083,
+				"MaxX": 7623.1524,
+				"MaxY": 11231.4083,
+				"Width": 0,
+				"Height": 0
+			},
+			"SourceRows": [
+				18
+			],
+			"Color": null,
+			"MemberIds": []
+		}
+	],
+	"Devices": [
+		{
+			"Id": "6df3c9ab-ff44-428c-867b-e3d4fb535393",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"DriverLightId": "00000000-0000-0000-0000-000000000000",
+			"DeviceId": "00000000-0000-0000-0000-000000000000",
+			"UniqueNo": "GWGlH#0101-OCSR-003-0001",
+			"Name": "OCSR",
+			"Type": "OCSR",
+			"GatewayNo": "GWGlH#0101",
+			"ZigbeeNo": "003",
+			"CadX": 5416.4011,
+			"CadY": 9984.8507,
+			"X": 423.3393,
+			"Y": 142.561,
+			"SourceRow": 6,
+			"PlacementSource": "EXCEL",
+			"MatchStatus": "UNMATCHED",
+			"SubType": "OCSR",
+			"Power": 0,
+			"SourceFields": [
+				{
+					"Key": "NAME",
+					"Value": "OCSR"
+				},
+				{
+					"Key": "GWNO",
+					"Value": "GWGlH#0101"
+				},
+				{
+					"Key": "AREA",
+					"Value": "AR1F-Lou"
+				},
+				{
+					"Key": "AREACN",
+					"Value": "1F休闲区"
+				},
+				{
+					"Key": "ZIGBEETYPE",
+					"Value": "OCSR/220V~"
+				},
+				{
+					"Key": "ZIGBEENO",
+					"Value": "003"
+				},
+				{
+					"Key": "DEVICETYPE",
+					"Value": "OCSR"
+				},
+				{
+					"Key": "LIGHTTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "LIGHTNO",
+					"Value": ""
+				},
+				{
+					"Key": "DEVICEPOWER",
+					"Value": "2.5W"
+				},
+				{
+					"Key": "DIMMENSION",
+					"Value": "78*78"
+				},
+				{
+					"Key": "SUBTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "SUBNO",
+					"Value": ""
+				},
+				{
+					"Key": "X",
+					"Value": "5416.4011"
+				},
+				{
+					"Key": "Y",
+					"Value": "9984.8507"
+				}
+			]
+		},
+		{
+			"Id": "80a0f416-732a-4bbd-84ca-9e7aa099c0f5",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"DriverLightId": "00000000-0000-0000-0000-000000000000",
+			"DeviceId": "00000000-0000-0000-0000-000000000000",
+			"UniqueNo": "GWGlH#0101-OCSR-006-0002",
+			"Name": "OCSR",
+			"Type": "OCSR",
+			"GatewayNo": "GWGlH#0101",
+			"ZigbeeNo": "006",
+			"CadX": 3283.237,
+			"CadY": 7220.1592,
+			"X": 315.8854,
+			"Y": 281.8226,
+			"SourceRow": 7,
+			"PlacementSource": "EXCEL",
+			"MatchStatus": "UNMATCHED",
+			"SubType": "OCSR",
+			"Power": 0,
+			"SourceFields": [
+				{
+					"Key": "NAME",
+					"Value": "OCSR"
+				},
+				{
+					"Key": "GWNO",
+					"Value": "GWGlH#0101"
+				},
+				{
+					"Key": "AREA",
+					"Value": "AR1F-STR"
+				},
+				{
+					"Key": "AREACN",
+					"Value": "1F储物间"
+				},
+				{
+					"Key": "ZIGBEETYPE",
+					"Value": "OCSR/220V~"
+				},
+				{
+					"Key": "ZIGBEENO",
+					"Value": "006"
+				},
+				{
+					"Key": "DEVICETYPE",
+					"Value": "OCSR"
+				},
+				{
+					"Key": "LIGHTTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "LIGHTNO",
+					"Value": ""
+				},
+				{
+					"Key": "DEVICEPOWER",
+					"Value": "2.5W"
+				},
+				{
+					"Key": "DIMMENSION",
+					"Value": "78*78"
+				},
+				{
+					"Key": "SUBTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "SUBNO",
+					"Value": ""
+				},
+				{
+					"Key": "X",
+					"Value": "3283.2370"
+				},
+				{
+					"Key": "Y",
+					"Value": "7220.1592"
+				}
+			]
+		},
+		{
+			"Id": "cc703070-5b5c-481e-a474-5fc6e88ccf16",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"DriverLightId": "00000000-0000-0000-0000-000000000000",
+			"DeviceId": "00000000-0000-0000-0000-000000000000",
+			"UniqueNo": "GWGlH#0101-SCU-005-0003",
+			"Name": "SCU-F",
+			"Type": "SCU",
+			"GatewayNo": "GWGlH#0101",
+			"ZigbeeNo": "005",
+			"CadX": 5349.9838,
+			"CadY": 8387.182,
+			"X": 419.9937,
+			"Y": 223.0379,
+			"SourceRow": 8,
+			"PlacementSource": "EXCEL",
+			"MatchStatus": "UNMATCHED",
+			"SubType": "SCU-F",
+			"Power": 0,
+			"SourceFields": [
+				{
+					"Key": "NAME",
+					"Value": "SCU-F"
+				},
+				{
+					"Key": "GWNO",
+					"Value": "GWGlH#0101"
+				},
+				{
+					"Key": "AREA",
+					"Value": "AR1F-Of"
+				},
+				{
+					"Key": "AREACN",
+					"Value": "1F办公区"
+				},
+				{
+					"Key": "ZIGBEETYPE",
+					"Value": "BR/SR±"
+				},
+				{
+					"Key": "ZIGBEENO",
+					"Value": "005"
+				},
+				{
+					"Key": "DEVICETYPE",
+					"Value": "SCU"
+				},
+				{
+					"Key": "LIGHTTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "LIGHTNO",
+					"Value": ""
+				},
+				{
+					"Key": "DEVICEPOWER",
+					"Value": "0.5W"
+				},
+				{
+					"Key": "DIMMENSION",
+					"Value": "78*78"
+				},
+				{
+					"Key": "SUBTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "SUBNO",
+					"Value": ""
+				},
+				{
+					"Key": "X",
+					"Value": "5349.9838"
+				},
+				{
+					"Key": "Y",
+					"Value": "8387.1820"
+				}
+			]
+		},
+		{
+			"Id": "d998f33b-2db4-461e-8f83-4f2b178053c7",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"DriverLightId": "00000000-0000-0000-0000-000000000000",
+			"DeviceId": "00000000-0000-0000-0000-000000000000",
+			"UniqueNo": "GWGlH#0101-SCU-007-0004",
+			"Name": "SCU-F",
+			"Type": "SCU",
+			"GatewayNo": "GWGlH#0101",
+			"ZigbeeNo": "007",
+			"CadX": 5349.9845,
+			"CadY": 6587.1789,
+			"X": 419.9937,
+			"Y": 313.7068,
+			"SourceRow": 9,
+			"PlacementSource": "EXCEL",
+			"MatchStatus": "UNMATCHED",
+			"SubType": "SCU-F",
+			"Power": 0,
+			"SourceFields": [
+				{
+					"Key": "NAME",
+					"Value": "SCU-F"
+				},
+				{
+					"Key": "GWNO",
+					"Value": "GWGlH#0101"
+				},
+				{
+					"Key": "AREA",
+					"Value": "AR1F-Of"
+				},
+				{
+					"Key": "AREACN",
+					"Value": "1F办公区"
+				},
+				{
+					"Key": "ZIGBEETYPE",
+					"Value": "BR/SR±"
+				},
+				{
+					"Key": "ZIGBEENO",
+					"Value": "007"
+				},
+				{
+					"Key": "DEVICETYPE",
+					"Value": "SCU"
+				},
+				{
+					"Key": "LIGHTTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "LIGHTNO",
+					"Value": ""
+				},
+				{
+					"Key": "DEVICEPOWER",
+					"Value": "0.5W"
+				},
+				{
+					"Key": "DIMMENSION",
+					"Value": "78*78"
+				},
+				{
+					"Key": "SUBTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "SUBNO",
+					"Value": ""
+				},
+				{
+					"Key": "X",
+					"Value": "5349.9845"
+				},
+				{
+					"Key": "Y",
+					"Value": "6587.1789"
+				}
+			]
+		},
+		{
+			"Id": "ec685b89-587e-44f6-85cb-f4dbb67b8be8",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"DriverLightId": "00000000-0000-0000-0000-000000000000",
+			"DeviceId": "00000000-0000-0000-0000-000000000000",
+			"UniqueNo": "GWGlH#0101-OCSR-008-0005",
+			"Name": "OCSR",
+			"Type": "OCSR",
+			"GatewayNo": "GWGlH#0101",
+			"ZigbeeNo": "008",
+			"CadX": 3254.4603,
+			"CadY": 3962.3507,
+			"X": 314.4359,
+			"Y": 445.9233,
+			"SourceRow": 10,
+			"PlacementSource": "EXCEL",
+			"MatchStatus": "UNMATCHED",
+			"SubType": "OCSR",
+			"Power": 0,
+			"SourceFields": [
+				{
+					"Key": "NAME",
+					"Value": "OCSR"
+				},
+				{
+					"Key": "GWNO",
+					"Value": "GWGlH#0101"
+				},
+				{
+					"Key": "AREA",
+					"Value": "AR1F-STA"
+				},
+				{
+					"Key": "AREACN",
+					"Value": "1F楼梯间"
+				},
+				{
+					"Key": "ZIGBEETYPE",
+					"Value": "OCSR/220V~"
+				},
+				{
+					"Key": "ZIGBEENO",
+					"Value": "008"
+				},
+				{
+					"Key": "DEVICETYPE",
+					"Value": "OCSR"
+				},
+				{
+					"Key": "LIGHTTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "LIGHTNO",
+					"Value": ""
+				},
+				{
+					"Key": "DEVICEPOWER",
+					"Value": "2.5W"
+				},
+				{
+					"Key": "DIMMENSION",
+					"Value": "78*78"
+				},
+				{
+					"Key": "SUBTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "SUBNO",
+					"Value": ""
+				},
+				{
+					"Key": "X",
+					"Value": "3254.4603"
+				},
+				{
+					"Key": "Y",
+					"Value": "3962.3507"
+				}
+			]
+		},
+		{
+			"Id": "9f32718e-2282-4150-adc7-76c80b8047ce",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"DriverLightId": "00000000-0000-0000-0000-000000000000",
+			"DeviceId": "00000000-0000-0000-0000-000000000000",
+			"UniqueNo": "GWGlH#0101-AC-002-0006",
+			"Name": "MCB",
+			"Type": "AC",
+			"GatewayNo": "GWGlH#0101",
+			"ZigbeeNo": "002",
+			"CadX": 6556.6195,
+			"CadY": 10367.5828,
+			"X": 480.7755,
+			"Y": 123.2822,
+			"SourceRow": 11,
+			"PlacementSource": "EXCEL",
+			"MatchStatus": "UNMATCHED",
+			"SubType": "MCB",
+			"Power": 0,
+			"SourceFields": [
+				{
+					"Key": "NAME",
+					"Value": "MCB"
+				},
+				{
+					"Key": "GWNO",
+					"Value": "GWGlH#0101"
+				},
+				{
+					"Key": "AREA",
+					"Value": "AR1F-Lou"
+				},
+				{
+					"Key": "AREACN",
+					"Value": "1F休闲区"
+				},
+				{
+					"Key": "ZIGBEETYPE",
+					"Value": "MCBOX/220V~"
+				},
+				{
+					"Key": "ZIGBEENO",
+					"Value": "002"
+				},
+				{
+					"Key": "DEVICETYPE",
+					"Value": "AC"
+				},
+				{
+					"Key": "LIGHTTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "LIGHTNO",
+					"Value": ""
+				},
+				{
+					"Key": "DEVICEPOWER",
+					"Value": "2.5W"
+				},
+				{
+					"Key": "DIMMENSION",
+					"Value": "78*78"
+				},
+				{
+					"Key": "SUBTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "SUBNO",
+					"Value": ""
+				},
+				{
+					"Key": "X",
+					"Value": "6556.6195"
+				},
+				{
+					"Key": "Y",
+					"Value": "10367.5828"
+				}
+			]
+		},
+		{
+			"Id": "abedac30-1a0a-4bd6-8628-2003bffc8d52",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"DriverLightId": "00000000-0000-0000-0000-000000000000",
+			"DeviceId": "00000000-0000-0000-0000-000000000000",
+			"UniqueNo": "GWGlH#0101-CC-001-0007",
+			"Name": "MCB",
+			"Type": "CC",
+			"GatewayNo": "GWGlH#0101",
+			"ZigbeeNo": "001",
+			"CadX": 4072.6009,
+			"CadY": 10381.7242,
+			"X": 355.6481,
+			"Y": 122.5699,
+			"SourceRow": 12,
+			"PlacementSource": "EXCEL",
+			"MatchStatus": "UNMATCHED",
+			"SubType": "MCB",
+			"Power": 0,
+			"SourceFields": [
+				{
+					"Key": "NAME",
+					"Value": "MCB"
+				},
+				{
+					"Key": "GWNO",
+					"Value": "GWGlH#0101"
+				},
+				{
+					"Key": "AREA",
+					"Value": "AR1F-Lou"
+				},
+				{
+					"Key": "AREACN",
+					"Value": "1F休闲区"
+				},
+				{
+					"Key": "ZIGBEETYPE",
+					"Value": "MCBOX/220V~"
+				},
+				{
+					"Key": "ZIGBEENO",
+					"Value": "001"
+				},
+				{
+					"Key": "DEVICETYPE",
+					"Value": "CC"
+				},
+				{
+					"Key": "LIGHTTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "LIGHTNO",
+					"Value": ""
+				},
+				{
+					"Key": "DEVICEPOWER",
+					"Value": "2.5W"
+				},
+				{
+					"Key": "DIMMENSION",
+					"Value": "78*78"
+				},
+				{
+					"Key": "SUBTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "SUBNO",
+					"Value": ""
+				},
+				{
+					"Key": "X",
+					"Value": "4072.6009"
+				},
+				{
+					"Key": "Y",
+					"Value": "10381.7242"
+				}
+			]
+		},
+		{
+			"Id": "bb7f054b-82c4-4b0d-81d3-fa6f62994bad",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"DriverLightId": "00000000-0000-0000-0000-000000000000",
+			"DeviceId": "00000000-0000-0000-0000-000000000000",
+			"UniqueNo": "GWGlH#0101-OCSR-004-0008",
+			"Name": "OCSR",
+			"Type": "OCSR",
+			"GatewayNo": "GWGlH#0101",
+			"ZigbeeNo": "004",
+			"CadX": 4154.5305,
+			"CadY": 9130.9442,
+			"X": 359.7751,
+			"Y": 185.5735,
+			"SourceRow": 13,
+			"PlacementSource": "EXCEL",
+			"MatchStatus": "UNMATCHED",
+			"SubType": "OCSR",
+			"Power": 0,
+			"SourceFields": [
+				{
+					"Key": "NAME",
+					"Value": "OCSR"
+				},
+				{
+					"Key": "GWNO",
+					"Value": "GWGlH#0101"
+				},
+				{
+					"Key": "AREA",
+					"Value": "AR1F-Of"
+				},
+				{
+					"Key": "AREACN",
+					"Value": "1F办公区"
+				},
+				{
+					"Key": "ZIGBEETYPE",
+					"Value": "OCSR/220V~"
+				},
+				{
+					"Key": "ZIGBEENO",
+					"Value": "004"
+				},
+				{
+					"Key": "DEVICETYPE",
+					"Value": "OCSR"
+				},
+				{
+					"Key": "LIGHTTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "LIGHTNO",
+					"Value": ""
+				},
+				{
+					"Key": "DEVICEPOWER",
+					"Value": "2.5W"
+				},
+				{
+					"Key": "DIMMENSION",
+					"Value": "78*78"
+				},
+				{
+					"Key": "SUBTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "SUBNO",
+					"Value": ""
+				},
+				{
+					"Key": "X",
+					"Value": "4154.5305"
+				},
+				{
+					"Key": "Y",
+					"Value": "9130.9442"
+				}
+			]
+		},
+		{
+			"Id": "04545885-dbae-4ea3-8372-7be6368fab83",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"DriverLightId": "00000000-0000-0000-0000-000000000000",
+			"DeviceId": "00000000-0000-0000-0000-000000000000",
+			"UniqueNo": "GWGlH#0101-OCSR-009-0009",
+			"Name": "OCSR",
+			"Type": "OCSR",
+			"GatewayNo": "GWGlH#0101",
+			"ZigbeeNo": "009",
+			"CadX": 5289.0498,
+			"CadY": 3770.1631,
+			"X": 416.9242,
+			"Y": 455.6041,
+			"SourceRow": 14,
+			"PlacementSource": "EXCEL",
+			"MatchStatus": "UNMATCHED",
+			"SubType": "OCSR",
+			"Power": 0,
+			"SourceFields": [
+				{
+					"Key": "NAME",
+					"Value": "OCSR"
+				},
+				{
+					"Key": "GWNO",
+					"Value": "GWGlH#0101"
+				},
+				{
+					"Key": "AREA",
+					"Value": "AR1F-LOB"
+				},
+				{
+					"Key": "AREACN",
+					"Value": "1F门厅"
+				},
+				{
+					"Key": "ZIGBEETYPE",
+					"Value": "OCSR/220V~"
+				},
+				{
+					"Key": "ZIGBEENO",
+					"Value": "009"
+				},
+				{
+					"Key": "DEVICETYPE",
+					"Value": "OCSR"
+				},
+				{
+					"Key": "LIGHTTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "LIGHTNO",
+					"Value": ""
+				},
+				{
+					"Key": "DEVICEPOWER",
+					"Value": "2.5W"
+				},
+				{
+					"Key": "DIMMENSION",
+					"Value": "78*78"
+				},
+				{
+					"Key": "SUBTYPE",
+					"Value": ""
+				},
+				{
+					"Key": "SUBNO",
+					"Value": ""
+				},
+				{
+					"Key": "X",
+					"Value": "5289.0498"
+				},
+				{
+					"Key": "Y",
+					"Value": "3770.1631"
+				}
+			]
+		},
+		{
+			"Id": "62929db9-d5fc-4cec-8810-90d41a8e73e6",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"DriverLightId": "00000000-0000-0000-0000-000000000000",
+			"DeviceId": "00000000-0000-0000-0000-000000000000",
+			"UniqueNo": "GWGIH#0101-GW-01",
+			"Name": "GWGIH#0101 Gateway",
+			"Type": "GW",
+			"GatewayNo": null,
+			"ZigbeeNo": null,
+			"CadX": 5047.3678,
+			"CadY": 6450.7282,
+			"X": 404.75,
+			"Y": 320.58,
+			"SourceRow": 0,
+			"PlacementSource": "REGION_CENTROID",
+			"MatchStatus": "DERIVED",
+			"SubType": null,
+			"Power": 0,
+			"SourceFields": []
+		},
+		{
+			"Id": "79cb6be2-74e4-4954-9876-06d1710a9dac",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"DriverLightId": "00000000-0000-0000-0000-000000000000",
+			"DeviceId": "00000000-0000-0000-0000-000000000000",
+			"UniqueNo": "总图 Y轴最大点-GW-02",
+			"Name": "总图 Y轴最大点 Gateway",
+			"Type": "GW",
+			"GatewayNo": null,
+			"ZigbeeNo": null,
+			"CadX": 2471.5831,
+			"CadY": 1670.0481,
+			"X": 275,
+			"Y": 561.39,
+			"SourceRow": 0,
+			"PlacementSource": "REGION_CENTROID",
+			"MatchStatus": "DERIVED",
+			"SubType": null,
+			"Power": 0,
+			"SourceFields": []
+		},
+		{
+			"Id": "6f344190-b3a3-4363-952f-5459a6f6644d",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"DriverLightId": "00000000-0000-0000-0000-000000000000",
+			"DeviceId": "00000000-0000-0000-0000-000000000000",
+			"UniqueNo": "总图 XY轴最大点-GW-03",
+			"Name": "总图 XY轴最大点 Gateway",
+			"Type": "GW",
+			"GatewayNo": null,
+			"ZigbeeNo": null,
+			"CadX": 7623.1524,
+			"CadY": 1670.0481,
+			"X": 534.5,
+			"Y": 561.39,
+			"SourceRow": 0,
+			"PlacementSource": "REGION_CENTROID",
+			"MatchStatus": "DERIVED",
+			"SubType": null,
+			"Power": 0,
+			"SourceFields": []
+		},
+		{
+			"Id": "8e6f6382-05cb-43fc-84cf-728d0d6f6bf4",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"DriverLightId": "00000000-0000-0000-0000-000000000000",
+			"DeviceId": "00000000-0000-0000-0000-000000000000",
+			"UniqueNo": "总图 -GW-04",
+			"Name": "总图  Gateway",
+			"Type": "GW",
+			"GatewayNo": null,
+			"ZigbeeNo": null,
+			"CadX": 2471.5831,
+			"CadY": 11231.4083,
+			"X": 275,
+			"Y": 79.77,
+			"SourceRow": 0,
+			"PlacementSource": "REGION_CENTROID",
+			"MatchStatus": "DERIVED",
+			"SubType": null,
+			"Power": 0,
+			"SourceFields": []
+		},
+		{
+			"Id": "7d51f4eb-42a6-4f83-818c-41d0eb07cb6b",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"DriverLightId": "00000000-0000-0000-0000-000000000000",
+			"DeviceId": "00000000-0000-0000-0000-000000000000",
+			"UniqueNo": "总图 X轴最大点-GW-05",
+			"Name": "总图 X轴最大点 Gateway",
+			"Type": "GW",
+			"GatewayNo": null,
+			"ZigbeeNo": null,
+			"CadX": 7623.1524,
+			"CadY": 11231.4083,
+			"X": 534.5,
+			"Y": 79.77,
+			"SourceRow": 0,
+			"PlacementSource": "REGION_CENTROID",
+			"MatchStatus": "DERIVED",
+			"SubType": null,
+			"Power": 0,
+			"SourceFields": []
+		}
+	],
+	"Relations": [
+		{
+			"Id": "862e0e9c-d4d6-4c17-b93f-7576a2a2714c",
+			"RegionId": "405e1886-844b-4d7e-a604-01e282a94b28",
+			"MapDeviceId": "6df3c9ab-ff44-428c-867b-e3d4fb535393",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"RelationSource": "AUTO"
+		},
+		{
+			"Id": "634cf4b2-84f4-4979-a2e5-b7f0b51a282f",
+			"RegionId": "405e1886-844b-4d7e-a604-01e282a94b28",
+			"MapDeviceId": "80a0f416-732a-4bbd-84ca-9e7aa099c0f5",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"RelationSource": "AUTO"
+		},
+		{
+			"Id": "96a12fd2-594a-495f-a072-800fee5af7e6",
+			"RegionId": "405e1886-844b-4d7e-a604-01e282a94b28",
+			"MapDeviceId": "cc703070-5b5c-481e-a474-5fc6e88ccf16",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"RelationSource": "AUTO"
+		},
+		{
+			"Id": "ad3f6bd5-adee-4704-a48e-619a7099ae0c",
+			"RegionId": "405e1886-844b-4d7e-a604-01e282a94b28",
+			"MapDeviceId": "d998f33b-2db4-461e-8f83-4f2b178053c7",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"RelationSource": "AUTO"
+		},
+		{
+			"Id": "454e74eb-aa86-43a8-a20e-390c8c9a6dce",
+			"RegionId": "405e1886-844b-4d7e-a604-01e282a94b28",
+			"MapDeviceId": "ec685b89-587e-44f6-85cb-f4dbb67b8be8",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"RelationSource": "AUTO"
+		},
+		{
+			"Id": "7c16bdc9-ef9e-45e1-bf15-337d0ec999eb",
+			"RegionId": "405e1886-844b-4d7e-a604-01e282a94b28",
+			"MapDeviceId": "9f32718e-2282-4150-adc7-76c80b8047ce",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"RelationSource": "AUTO"
+		},
+		{
+			"Id": "8cbb645c-addf-46c9-93b6-714c952ea040",
+			"RegionId": "405e1886-844b-4d7e-a604-01e282a94b28",
+			"MapDeviceId": "abedac30-1a0a-4bd6-8628-2003bffc8d52",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"RelationSource": "AUTO"
+		},
+		{
+			"Id": "0e934353-fb4b-4e97-89c2-21888eed1ca8",
+			"RegionId": "405e1886-844b-4d7e-a604-01e282a94b28",
+			"MapDeviceId": "bb7f054b-82c4-4b0d-81d3-fa6f62994bad",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"RelationSource": "AUTO"
+		},
+		{
+			"Id": "48da86d1-8470-4e35-82e2-c53abb6b7868",
+			"RegionId": "405e1886-844b-4d7e-a604-01e282a94b28",
+			"MapDeviceId": "04545885-dbae-4ea3-8372-7be6368fab83",
+			"BusinessDeviceId": "00000000-0000-0000-0000-000000000000",
+			"RelationSource": "AUTO"
+		}
+	],
+	"Warnings": []
+}

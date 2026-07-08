@@ -1,0 +1,60 @@
+{
+  "regionOverrides": [
+    {
+      "match": { "x": 251.655, "y": 214.735, "tolerance": 40 },
+      "name": "AR包装厂房"
+    },
+    {
+      "match": { "x": 280.09, "y": 286.855, "tolerance": 40 },
+      "name": "灯检走廊"
+    },
+    {
+      "match": { "x": 418.15, "y": 306.345, "tolerance": 40 },
+      "name": "输送缓冲区"
+    }
+  ],
+  "deviceOverrides": [
+    {
+      "match": { "x": 360.86, "y": 111.455, "tolerance": 24 },
+      "type": "gw",
+      "name": "GW-A",
+      "deviceId": "GWA06#0101"
+    },
+    {
+      "match": { "x": 600.815, "y": 255.335, "tolerance": 24 },
+      "type": "gw",
+      "name": "GW-B",
+      "deviceId": "GWA06#0102"
+    },
+    {
+      "match": { "x": 293.995, "y": 203.285, "tolerance": 24 },
+      "type": "cu",
+      "name": "CU-001",
+      "deviceId": "GWA06#0101-001"
+    },
+    {
+      "match": { "x": 323.225, "y": 292.685, "tolerance": 24 },
+      "type": "cu",
+      "name": "CU-002",
+      "deviceId": "GWA06#0101-002"
+    },
+    {
+      "match": { "x": 362.375, "y": 290.295, "tolerance": 24 },
+      "type": "cu",
+      "name": "CU-003",
+      "deviceId": "GWA06#0101-003"
+    },
+    {
+      "match": { "x": 591.925, "y": 356.075, "tolerance": 24 },
+      "type": "cu",
+      "name": "CU-004",
+      "deviceId": "GWA06#0101-004"
+    },
+    {
+      "match": { "x": 593.72, "y": 422.665, "tolerance": 24 },
+      "type": "cu",
+      "name": "CU-005",
+      "deviceId": "GWA06#0101-005"
+    }
+  ]
+}

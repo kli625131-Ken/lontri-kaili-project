@@ -1,0 +1,21 @@
+{
+  "name": "moutai-lighting",
+  "version": "1.0.0",
+  "description": "茅台物联网照明智慧系统",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "build:floor1-map-data": "node scripts/build-floor1-map-data.js"
+  },
+  "dependencies": {
+    "vue": "^3.4.21",
+    "vue-router": "^4.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.4",
+    "vite": "^5.2.0",
+    "xlsx": "^0.18.5"
+  }
+}

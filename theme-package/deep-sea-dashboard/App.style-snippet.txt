@@ -1,0 +1,3 @@
+﻿<style>
+@import './styles/deep-sea-dashboard.css';
+</style>

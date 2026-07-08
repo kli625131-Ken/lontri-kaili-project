@@ -1,0 +1,73 @@
+{
+  "floorId": "floor1",
+  "name": "开利101车间一层",
+  "svgUrl": "/maps/floor1.svg",
+  "dataUrl": "/maps/floor1.data.json",
+  "sourceExcel": "docs/开利101车间-灯控设备坐标值260226.xls",
+  "sourceSheet": "Summary",
+  "unit": "CAD",
+  "viewBox": {
+    "x": 0,
+    "y": 0,
+    "width": 800,
+    "height": 600
+  },
+  "svgBounds": {
+    "minX": 0,
+    "minY": 0,
+    "maxX": 800,
+    "maxY": 600,
+    "width": 800,
+    "height": 600
+  },
+  "svgPathBounds": {
+    "minX": 11.15,
+    "minY": 1.74,
+    "maxX": 788.85,
+    "maxY": 598.26,
+    "width": 777.7,
+    "height": 596.52
+  },
+  "cadBounds": {
+    "minX": 14500.9157,
+    "minY": 11289.7105,
+    "maxX": 178643.6849,
+    "maxY": 116689.7105,
+    "width": 164142.7692,
+    "height": 105400
+  },
+  "bbox": {
+    "minX": 14500.9157,
+    "minY": 11289.7105,
+    "maxX": 178643.6849,
+    "maxY": 116689.7105,
+    "width": 164142.7692,
+    "height": 105400
+  },
+  "coordinateTransform": {
+    "type": "affine",
+    "a": 0.0038009006724095858,
+    "b": 0,
+    "c": 37.863459765315284,
+    "d": 0,
+    "e": -0.0036353484950132904,
+    "f": 556.2677634497115,
+    "cadBounds": {
+      "minX": 14500.9157,
+      "minY": 11289.7105,
+      "maxX": 178643.6849,
+      "maxY": 116689.7105,
+      "width": 164142.7692,
+      "height": 105400
+    },
+    "formulas": {
+      "cadToSvg": "svg.x = cad.x * a + cad.y * b + c; svg.y = cad.x * d + cad.y * e + f",
+      "svgToCad": "cad.x = (svg.x - c) / a; cad.y = (svg.y - f) / e"
+    }
+  },
+  "notes": [
+    "floor1.data.json 由 scripts/build-floor1-map-data.js 从属性表生成。",
+    "属性表当前只有 DEVICETYPE=CU 的设备坐标；GW 按每个区域一个网关图标派生，位置取区域 CAD 顶点中心。",
+    "GWA06#0103 在源表中包含两组矩形顶点，生成时拆分为两个唯一区域。"
+  ]
+}
