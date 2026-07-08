@@ -1,124 +1,228 @@
 <template>
   <aside class="control-drawer config-drawer">
-    <div class="drawer-head">
-      <div class="drawer-ident">
-        <div class="drawer-icon">CFG</div>
-        <div class="drawer-title-box">
-          <h3 class="drawer-title">配置调试</h3>
-          <p class="drawer-subtitle">{{ targetName }}</p>
-        </div>
+    <header class="drawer-head">
+      <div class="drawer-title-box">
+        <h3 class="drawer-title">{{ drawerTitle }}</h3>
+        <p class="drawer-subtitle">{{ targetName }}</p>
       </div>
-      <button class="drawer-close" @click="$emit('close')">×</button>
-    </div>
+      <button class="drawer-close" type="button" title="关闭" @click="$emit('close')">×</button>
+    </header>
+
+    <nav class="config-tabs" aria-label="配置步骤">
+      <button
+        v-for="tab in tabs"
+        :key="tab.value"
+        type="button"
+        class="config-tab"
+        :class="{ active: activeTab === tab.value }"
+        @click="activeTab = tab.value"
+      >
+        {{ tab.label }}
+      </button>
+    </nav>
 
     <div class="drawer-body">
-      <div class="config-tabs">
-        <button
-          v-for="tab in tabs"
-          :key="tab.value"
-          class="scene-tab"
-          :class="{ active: activeTab === tab.value }"
-          @click="activeTab = tab.value"
-        >
-          {{ tab.label }}
-        </button>
-      </div>
-
       <section v-if="activeTab === 'base'" class="drawer-section">
-        <div class="section-head">
-          <span>基础信息</span>
-          <span class="section-tag">本地草稿</span>
+        <div class="form-grid">
+          <label class="field-row">
+            <span>区域名称</span>
+            <input v-model.trim="baseForm.name" class="text-input" @change="commitBaseInfo" />
+          </label>
+          <label class="field-row">
+            <span>区域编号</span>
+            <input v-model.trim="baseForm.code" class="text-input" @change="commitBaseInfo" />
+          </label>
+          <label class="field-row">
+            <span>所属网关</span>
+            <input :value="gatewaySummary" readonly class="text-input readonly" />
+          </label>
+          <label class="field-row">
+            <span>配置状态</span>
+            <input :value="configStatusText" readonly class="text-input readonly" />
+          </label>
         </div>
-        <div class="status-card">
-          <div class="status-row"><span>对象类型</span><strong>{{ targetTypeText }}</strong></div>
-          <div class="status-row"><span>名称</span><strong>{{ targetName }}</strong></div>
-          <div class="status-row"><span>编号</span><strong>{{ target?.code || target?.id || '--' }}</strong></div>
-          <div class="status-row"><span>图形类型</span><strong>{{ target?.shapeType || 'POLYGON' }}</strong></div>
-        </div>
-      </section>
 
-      <section v-if="activeTab === 'devices'" class="drawer-section">
-        <div class="section-head">
-          <span>区域设备</span>
-          <span class="section-tag">{{ regionDevices.length }} 台 CU</span>
-        </div>
-        <div class="table-card">
-          <div class="table-head compact">
-            <span>设备</span>
-            <span>网关</span>
-          </div>
-          <div class="table-body compact">
-            <div v-for="device in regionDevices" :key="device.id" class="table-row compact">
+        <details class="device-summary" open>
+          <summary>
+            <span>区域内 CU：{{ regionDevices.length }} 台</span>
+            <span>异常：{{ offlineDeviceCount }}</span>
+          </summary>
+          <div class="summary-list">
+            <div v-for="device in compactDevices" :key="device.id" class="summary-row">
               <span>{{ device.shortName || device.id }}</span>
               <span>{{ device.gatewayId || '--' }}</span>
             </div>
-            <div v-if="!regionDevices.length" class="table-empty">当前区域暂无 CU 设备</div>
+            <div v-if="regionDevices.length > compactDevices.length" class="summary-empty">
+              还有 {{ regionDevices.length - compactDevices.length }} 台设备
+            </div>
+            <div v-if="!regionDevices.length" class="summary-empty">当前区域暂无 CU 设备</div>
           </div>
-        </div>
+        </details>
       </section>
 
       <section v-if="activeTab === 'areaGroup'" class="drawer-section">
-        <div class="section-head">
-          <span>区域组</span>
-          <span class="section-tag">组播控制</span>
+        <div class="form-grid">
+          <label class="field-row">
+            <span>区域组名称</span>
+            <input v-model.trim="areaGroupForm.name" class="text-input" />
+          </label>
+          <label class="field-row">
+            <span>4位组号</span>
+            <input
+              v-model.trim="areaGroupForm.groupNo"
+              maxlength="4"
+              class="text-input"
+              inputmode="numeric"
+              @input="areaGroupForm.groupNo = digitsOnly(areaGroupForm.groupNo).slice(0, 4)"
+            />
+          </label>
+          <label class="field-row">
+            <span>CU成员数量</span>
+            <input :value="regionDevices.length" readonly class="text-input readonly" />
+          </label>
+          <label class="field-row">
+            <span>所属网关</span>
+            <input :value="gatewaySummary" readonly class="text-input readonly" />
+          </label>
         </div>
-        <div class="button-grid">
-          <button class="action-btn" @click="$emit('create-area-group', target)">创建区域组</button>
-          <button class="action-btn" @click="$emit('bind-area-group', target)">绑定已有区域组</button>
-          <button class="action-btn" @click="$emit('skip-area-group', target)">暂不配置</button>
-        </div>
-        <p class="section-desc">
-          区域组只由同一网关下选定 CU 组成；网关广播控制与区域组组播控制保持独立。
-        </p>
-        <div v-if="areaGroup" class="status-card">
-          <div class="status-row"><span>区域组</span><strong>{{ areaGroup.name }}</strong></div>
-          <div class="status-row"><span>所属网关</span><strong>{{ areaGroup.gatewayId || '--' }}</strong></div>
-          <div class="status-row"><span>成员数</span><strong>{{ areaGroup.memberIds.length }}</strong></div>
+        <div class="button-row">
+          <button class="action-btn" type="button" @click="$emit('create-area-group', target)">新建区域组</button>
+          <button class="action-btn" type="button" @click="$emit('bind-area-group', target)">选择已有区域组</button>
+          <button class="action-btn primary" type="button" @click="$emit('save-area-group', { region: target, areaGroup: areaGroupForm })">
+            保存草稿
+          </button>
         </div>
       </section>
 
       <section v-if="activeTab === 'scene'" class="drawer-section">
-        <div class="section-head">
-          <span>场景配置</span>
-          <span class="section-tag">前端预演</span>
+        <div class="form-grid">
+          <label class="field-row">
+            <span>默认场景</span>
+            <select v-model="sceneForm.defaultScene" class="text-input">
+              <option value="on">区域开</option>
+              <option value="off">区域关</option>
+              <option value="saving">节能</option>
+            </select>
+          </label>
+          <label class="field-row">
+            <span>自定义场景</span>
+            <input v-model.trim="sceneForm.name" class="text-input" />
+          </label>
+          <label class="field-row">
+            <span>亮度</span>
+            <input v-model.trim="sceneForm.brightness" class="text-input" inputmode="numeric" @input="sceneForm.brightness = digitsOnly(sceneForm.brightness).slice(0, 3)" />
+          </label>
+          <label class="field-row">
+            <span>色温</span>
+            <input v-model.trim="sceneForm.colorTemperature" class="text-input" inputmode="numeric" @input="sceneForm.colorTemperature = digitsOnly(sceneForm.colorTemperature).slice(0, 4)" />
+          </label>
         </div>
-        <div class="button-grid">
-          <button class="action-btn" @click="$emit('create-default-scenes', target)">创建默认场景</button>
-          <button class="action-btn" @click="$emit('bind-scene', target)">绑定已有场景</button>
-          <button class="action-btn" @click="$emit('create-custom-scene', target)">创建自定义场景</button>
-          <button class="action-btn" @click="$emit('skip-scene', target)">暂不配置</button>
+        <div class="button-row">
+          <button class="action-btn" type="button" @click="$emit('create-default-scenes', target)">默认场景</button>
+          <button class="action-btn" type="button" @click="$emit('create-custom-scene', target)">自定义场景</button>
+          <button class="action-btn primary" type="button" @click="$emit('save-scene', { region: target, scene: sceneForm })">保存场景</button>
         </div>
       </section>
 
       <section v-if="activeTab === 'params'" class="drawer-section">
-        <div class="section-head">
-          <span>CU 参数</span>
-          <span class="section-tag">前端草稿</span>
+        <div class="form-grid">
+          <label class="field-row">
+            <span>参数模板</span>
+            <select v-model="paramForm.templateId" class="text-input">
+              <option v-for="template in paramTemplates" :key="template.id" :value="template.id">{{ template.name }}</option>
+              <option value="custom">自定义</option>
+            </select>
+          </label>
+          <label class="field-row">
+            <span>控制模式</span>
+            <select v-model="paramForm.mode" class="text-input">
+              <option value="manual">手动</option>
+              <option value="auto">自动感应</option>
+            </select>
+          </label>
         </div>
-        <div class="button-grid">
-          <button class="action-btn" @click="$emit('use-param-template', target)">使用参数模板</button>
-          <button class="action-btn" @click="$emit('copy-param', target)">复制其他区域参数</button>
-          <button class="action-btn" @click="$emit('custom-param', target)">自定义参数</button>
-          <button class="action-btn" @click="$emit('skip-param', target)">暂不配置</button>
+
+        <div class="metric-grid">
+          <label class="field-row">
+            <span>亮度范围</span>
+            <span class="unit-input-wrap" :class="{ invalid: errors.brightness }">
+              <input
+                :value="paramForm.brightness"
+                list="drawer-brightness-options"
+                type="text"
+                inputmode="numeric"
+                class="unit-input"
+                @input="handlePercentInput($event, 'brightness')"
+                @blur="formatPercent('brightness')"
+              />
+              <span>%</span>
+            </span>
+            <small v-if="errors.brightness" class="field-error">{{ errors.brightness }}</small>
+          </label>
+          <label class="field-row">
+            <span>背景亮度</span>
+            <span class="unit-input-wrap" :class="{ invalid: errors.bgBrightness }">
+              <input
+                :value="paramForm.bgBrightness"
+                list="drawer-brightness-options"
+                type="text"
+                inputmode="numeric"
+                class="unit-input"
+                @input="handlePercentInput($event, 'bgBrightness')"
+                @blur="formatPercent('bgBrightness')"
+              />
+              <span>%</span>
+            </span>
+            <small v-if="errors.bgBrightness" class="field-error">{{ errors.bgBrightness }}</small>
+          </label>
+        </div>
+        <datalist id="drawer-brightness-options">
+          <option v-for="value in brightnessOptions" :key="value" :value="value"></option>
+        </datalist>
+
+        <div class="time-grid">
+          <label v-for="item in timeFields" :key="item.key" class="field-row">
+            <span>{{ item.label }}</span>
+            <span class="unit-input-wrap" :class="{ invalid: errors[item.key] }">
+              <input
+                :value="paramForm[item.key]"
+                type="text"
+                inputmode="numeric"
+                class="unit-input"
+                @input="handleDurationInput($event, item.key)"
+                @blur="validateDuration(item.key)"
+              />
+              <span>秒</span>
+            </span>
+            <small v-if="errors[item.key]" class="field-error">{{ errors[item.key] }}</small>
+          </label>
+        </div>
+
+        <div class="button-row">
+          <button class="action-btn" type="button" @click="$emit('use-param-template', target)">使用模板</button>
+          <button class="action-btn primary" type="button" @click="saveCuParams">保存参数</button>
         </div>
       </section>
 
       <section v-if="activeTab === 'validate'" class="drawer-section">
-        <div class="section-head">
-          <span>测试校验</span>
-          <button class="section-tag action-tag" @click="$emit('validate')">重新校验</button>
+        <div class="test-grid">
+          <button class="action-btn" type="button" @click="$emit('test-action', { type: 'area-on', region: target })">区域开</button>
+          <button class="action-btn" type="button" @click="$emit('test-action', { type: 'area-off', region: target })">区域关</button>
+          <button class="action-btn" type="button" @click="$emit('test-action', { type: 'brightness', region: target })">亮度测试</button>
+          <button class="action-btn" type="button" @click="$emit('test-action', { type: 'scene', region: target })">场景测试</button>
+          <button class="action-btn primary" type="button" @click="$emit('validate')">校验配置</button>
         </div>
-        <div v-if="validationMessages.length" class="validation-list">
-          <p v-for="message in validationMessages" :key="message">{{ message }}</p>
+        <div class="validation-box" :class="{ ok: !validationMessages.length }">
+          <p v-if="validationMessages.length" v-for="message in validationMessages" :key="message">{{ message }}</p>
+          <p v-else>校验通过</p>
         </div>
-        <div v-else class="table-empty">当前本地草稿暂无校验错误</div>
       </section>
     </div>
   </aside>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 
 const props = defineProps({
   target: {
@@ -147,286 +251,435 @@ const props = defineProps({
   }
 })
 
-defineEmits([
+const emit = defineEmits([
   'close',
+  'update-region',
   'create-area-group',
   'bind-area-group',
-  'skip-area-group',
+  'save-area-group',
   'create-default-scenes',
-  'bind-scene',
   'create-custom-scene',
-  'skip-scene',
+  'save-scene',
   'use-param-template',
-  'copy-param',
-  'custom-param',
-  'skip-param',
+  'save-cu-params',
+  'test-action',
   'validate'
 ])
 
 const tabs = [
   { label: '基础信息', value: 'base' },
-  { label: '区域设备', value: 'devices' },
   { label: '区域组', value: 'areaGroup' },
-  { label: '场景配置', value: 'scene' },
-  { label: 'CU 参数', value: 'params' },
-  { label: '测试校验', value: 'validate' }
+  { label: '场景', value: 'scene' },
+  { label: 'CU参数', value: 'params' },
+  { label: '测试', value: 'validate' }
+]
+const tabValues = new Set(tabs.map((tab) => tab.value))
+const activeTab = ref(normalizeTab(props.initialTab))
+const brightnessOptions = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+const timeFields = [
+  { key: 'bgTime', label: '进入背景亮度时间' },
+  { key: 'offTime', label: '进入关灯时间' },
+  { key: 'manualTime', label: '手动模式持续时间' }
 ]
 
-const activeTab = ref(props.initialTab)
-
-watch(
-  () => props.initialTab,
-  (tab) => {
-    activeTab.value = tab || 'base'
-  }
-)
-
-const targetName = computed(() => props.target?.name || props.target?.shortName || props.target?.id || '未选择对象')
-const targetTypeText = computed(() => {
-  if (props.targetType === 'area') return '地图区域'
-  if (props.targetType === 'map') return '当前地图'
-  return props.targetType || '--'
+const baseForm = reactive({ name: '', code: '' })
+const areaGroupForm = reactive({ name: '', groupNo: '' })
+const sceneForm = reactive({ defaultScene: 'on', name: '自定义场景', brightness: '80', colorTemperature: '4000' })
+const paramForm = reactive({
+  templateId: 'custom',
+  mode: 'manual',
+  brightness: '100',
+  bgBrightness: '40',
+  bgTime: '60',
+  offTime: '300',
+  manualTime: '1800'
 })
+const errors = reactive({})
+
+const drawerTitle = computed(() => {
+  if (activeTab.value === 'params') return 'CU参数'
+  return props.targetType === 'area' ? '区域配置' : '配置调试'
+})
+const targetName = computed(() => props.target?.name || props.target?.shortName || props.target?.id || '未选择对象')
 const regionDevices = computed(() => {
   if (!props.target?.memberIds) return []
   return props.devices.filter((device) => props.target.memberIds.includes(device.id))
 })
-const areaGroup = computed(() => props.draftState.areaGroups.find((group) => group.regionId === props.target?.id) || null)
+const compactDevices = computed(() => regionDevices.value.slice(0, 6))
+const offlineDeviceCount = computed(() => regionDevices.value.filter((device) => device.online === false).length)
+const gatewaySummary = computed(() => {
+  const ids = Array.from(new Set(regionDevices.value.map((device) => device.gatewayId).filter(Boolean)))
+  if (!ids.length) return '--'
+  if (ids.length === 1) return ids[0]
+  return `${ids[0]} 等 ${ids.length} 个`
+})
+const areaGroup = computed(() => props.draftState.areaGroups?.find((group) => group.regionId === props.target?.id) || null)
+const configStatusText = computed(() => {
+  if (props.draftState.dirty) return '待保存'
+  if (areaGroup.value || regionParamConfig.value) return '已保存草稿'
+  return '配置未完成'
+})
+const regionParamConfig = computed(() => {
+  const configs = props.draftState.cuParamConfigs || []
+  return configs.find((item) => item.regionId === props.target?.id) || null
+})
+const paramTemplates = computed(() => props.draftState.cuParamTemplates || [])
+
+watch(
+  () => props.initialTab,
+  (tab) => {
+    activeTab.value = normalizeTab(tab)
+  }
+)
+
+watch(
+  () => props.target,
+  (target) => {
+    activeTab.value = normalizeTab(props.initialTab)
+    baseForm.name = target?.name || ''
+    baseForm.code = target?.code || target?.id || ''
+    areaGroupForm.name = areaGroup.value?.name || `${target?.name || '区域'}组`
+    areaGroupForm.groupNo = areaGroup.value?.groupNo || ''
+    syncParamForm()
+  },
+  { immediate: true }
+)
+
+watch(regionParamConfig, syncParamForm, { immediate: true })
+
+function normalizeTab(value) {
+  if (value === 'devices') return 'base'
+  return tabValues.has(value) ? value : 'base'
+}
+
+function syncParamForm() {
+  const config = regionParamConfig.value
+  if (!config) return
+  paramForm.templateId = config.templateId || 'custom'
+  paramForm.mode = config.mode || 'manual'
+  paramForm.brightness = String(config.brightness ?? '100')
+  paramForm.bgBrightness = String(config.bgBrightness ?? '40')
+  paramForm.bgTime = String(config.bgTime ?? '60')
+  paramForm.offTime = String(config.offTime ?? '300')
+  paramForm.manualTime = String(config.manualTime ?? '1800')
+}
+
+function commitBaseInfo() {
+  if (!props.target) return
+  emit('update-region', {
+    ...props.target,
+    name: baseForm.name || props.target.name,
+    code: baseForm.code || props.target.code || props.target.id
+  })
+}
+
+function saveCuParams() {
+  if (!props.target || !validateAllParams()) return
+  emit('save-cu-params', {
+    region: props.target,
+    params: {
+      templateId: paramForm.templateId,
+      mode: paramForm.mode,
+      brightness: Number(paramForm.brightness),
+      bgBrightness: Number(paramForm.bgBrightness),
+      bgTime: Number(paramForm.bgTime),
+      offTime: Number(paramForm.offTime),
+      manualTime: Number(paramForm.manualTime)
+    }
+  })
+}
+
+function handlePercentInput(event, key) {
+  const value = digitsOnly(event.target.value).slice(0, 3)
+  paramForm[key] = value
+  event.target.value = value
+  validatePercent(key)
+}
+
+function formatPercent(key) {
+  validatePercent(key)
+}
+
+function validatePercent(key) {
+  const value = paramForm[key]
+  const numericValue = Number(value)
+  if (value === '' || !Number.isInteger(numericValue) || numericValue < 0 || numericValue > 100) {
+    errors[key] = '请输入 0-100 的整数'
+    return false
+  }
+  errors[key] = ''
+  return true
+}
+
+function handleDurationInput(event, key) {
+  const value = digitsOnly(event.target.value)
+  paramForm[key] = value
+  event.target.value = value
+  validateDuration(key)
+}
+
+function validateDuration(key) {
+  if (paramForm[key] === '') {
+    errors[key] = '请输入时间'
+    return false
+  }
+  errors[key] = ''
+  return true
+}
+
+function validateAllParams() {
+  return ['brightness', 'bgBrightness'].every(validatePercent) && timeFields.map((item) => item.key).every(validateDuration)
+}
+
+function digitsOnly(value) {
+  return String(value ?? '').replace(/\D/g, '')
+}
 </script>
 
 <style scoped>
-.control-drawer {
+.config-drawer.control-drawer {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  bottom: 12px;
-  width: 392px;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: auto !important;
+  width: clamp(360px, 28vw, 420px) !important;
+  max-height: none !important;
   display: flex;
   flex-direction: column;
-  border-radius: 18px;
-  border: 1px solid rgba(0, 225, 255, 0.55);
+  border: 0 !important;
+  border-left: 1px solid rgba(89, 227, 255, 0.36) !important;
+  border-radius: 0 !important;
   background:
-    linear-gradient(180deg, rgba(7, 21, 40, 0.98), rgba(3, 11, 24, 0.98)),
-    radial-gradient(circle at top right, rgba(89, 227, 255, 0.12), transparent 42%);
-  box-shadow:
-    0 18px 44px rgba(0, 0, 0, 0.42),
-    inset 0 0 0 1px rgba(89, 227, 255, 0.08);
+    linear-gradient(180deg, rgba(7, 20, 38, 0.98), rgba(4, 12, 24, 0.98)),
+    radial-gradient(circle at top right, rgba(89, 227, 255, 0.1), transparent 42%);
+  box-shadow: -12px 0 30px rgba(0, 0, 0, 0.26) !important;
   overflow: hidden;
+  transform: none;
 }
 
 .config-drawer {
-  z-index: 5;
+  z-index: 16;
 }
 
 .drawer-head {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 18px 16px;
-  border-bottom: 1px solid rgba(0, 225, 255, 0.24);
-}
-
-.drawer-ident {
-  display: flex;
-  gap: 12px;
-  min-width: 0;
-}
-
-.drawer-icon {
-  width: 40px;
-  height: 40px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  border: 1px solid rgba(0, 225, 255, 0.28);
-  background: rgba(89, 227, 255, 0.08);
-  color: #78e8ff;
-  font-size: 12px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.drawer-title-box {
-  min-width: 0;
+  min-height: 58px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(89, 227, 255, 0.18);
 }
 
 .drawer-title {
-  font-size: 16px;
+  margin: 0 0 3px;
   color: #f3f9ff;
-  margin-bottom: 4px;
+  font-size: 15px;
 }
 
 .drawer-subtitle {
-  color: rgba(211, 225, 239, 0.56);
+  margin: 0;
+  color: rgba(211, 225, 239, 0.62);
   font-size: 12px;
 }
 
 .drawer-close {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  border: 1px solid rgba(89, 227, 255, 0.34);
-  background: rgba(8, 24, 40, 0.86);
-  color: #f3f9ff;
-  font-size: 22px;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid rgba(89, 227, 255, 0.22);
+  background: rgba(7, 19, 34, 0.78);
+  color: rgba(234, 243, 252, 0.86);
+  font-size: 20px;
   line-height: 1;
+}
+
+.config-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  height: 40px;
+  border-bottom: 1px solid rgba(89, 227, 255, 0.16);
+  background: rgba(5, 16, 30, 0.72);
+}
+
+.config-tab {
+  position: relative;
+  border: 0;
+  background: transparent;
+  color: rgba(220, 235, 246, 0.68);
+  font-size: 12px;
+}
+
+.config-tab.active {
+  color: #55f2df;
+  background: rgba(53, 246, 212, 0.08);
+}
+
+.config-tab.active::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 2px;
+  background: #55f2df;
 }
 
 .drawer-body {
   flex: 1;
   overflow: auto;
-  padding: 18px;
-}
-
-.drawer-section {
-  margin-bottom: 14px;
   padding: 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(0, 225, 255, 0.38);
-  background: rgba(10, 23, 40, 0.74);
 }
 
-.section-head {
+.drawer-section,
+.form-grid,
+.metric-grid,
+.time-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.form-grid,
+.metric-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field-row {
+  display: grid;
+  gap: 6px;
+  color: rgba(234, 243, 252, 0.78);
+  font-size: 12px;
+}
+
+.text-input,
+.unit-input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #f3f9ff;
+  font-size: 13px;
+}
+
+.text-input {
+  padding: 0 10px;
+  border: 1px solid rgba(89, 227, 255, 0.2);
+  border-radius: 7px;
+  background: rgba(3, 12, 24, 0.74);
+}
+
+.text-input.readonly,
+.text-input:read-only {
+  color: rgba(234, 243, 252, 0.64);
+  background: rgba(4, 14, 28, 0.46);
+}
+
+.unit-input-wrap {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-  color: #f3f9ff;
-  font-size: 15px;
+  gap: 6px;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid rgba(89, 227, 255, 0.2);
+  border-radius: 7px;
+  background: rgba(3, 12, 24, 0.74);
+  color: rgba(234, 243, 252, 0.78);
 }
 
-.section-tag {
-  padding: 5px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(89, 227, 255, 0.34);
-  color: #f3f9ff;
-  background: rgba(89, 227, 255, 0.08);
+.unit-input-wrap.invalid {
+  border-color: rgba(255, 111, 118, 0.78);
+}
+
+.unit-input {
+  height: 32px;
+  text-align: right;
+}
+
+.field-error {
+  color: #ff8d88;
   font-size: 11px;
 }
 
-.config-tabs {
+.device-summary {
+  border: 1px solid rgba(89, 227, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(6, 17, 31, 0.52);
+}
+
+.device-summary summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  color: rgba(234, 243, 252, 0.86);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.summary-list {
+  max-height: 138px;
+  overflow: auto;
+  border-top: 1px solid rgba(89, 227, 255, 0.12);
+}
+
+.summary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 108px;
+  gap: 10px;
+  padding: 8px 12px;
+  color: rgba(234, 243, 252, 0.72);
+  font-size: 12px;
+}
+
+.summary-empty,
+.validation-box {
+  padding: 10px 12px;
+  color: rgba(211, 225, 239, 0.62);
+  font-size: 12px;
+}
+
+.button-row,
+.test-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 12px;
-}
-
-.scene-tab {
-  padding: 9px 14px;
-  border: 1px solid rgba(89, 227, 255, 0.34);
-  border-radius: 999px;
-  background: rgba(6, 17, 31, 0.66);
-  color: rgba(234, 243, 252, 0.82);
-  font-size: 13px;
-}
-
-.scene-tab.active {
-  color: #58efdb;
-  border-color: rgba(53, 246, 212, 0.58);
-  background: linear-gradient(90deg, rgba(89, 227, 255, 0.12), rgba(53, 246, 212, 0.12));
-}
-
-.button-grid {
-  display: grid;
-  gap: 12px;
 }
 
 .action-btn {
-  min-height: 42px;
-  padding: 10px 16px;
-  border-radius: 10px;
-  border: 1px solid rgba(0, 225, 255, 0.35);
-  background: rgba(6, 17, 31, 0.76);
-  color: rgba(234, 243, 252, 0.82);
-  font-size: 14px;
-}
-
-.action-btn:hover {
-  color: #58efdb;
-  border-color: rgba(53, 246, 212, 0.58);
-}
-
-.section-desc {
-  margin-top: 10px;
-  color: rgba(211, 225, 239, 0.56);
-  font-size: 12px;
-  line-height: 1.55;
-}
-
-.status-card {
-  display: grid;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: rgba(6, 17, 31, 0.7);
-  border: 1px solid rgba(89, 227, 255, 0.18);
-}
-
-.status-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  color: rgba(234, 243, 252, 0.82);
-  font-size: 13px;
-}
-
-.status-row strong {
-  color: #f3f9ff;
-  font-weight: 600;
-}
-
-.table-card {
-  overflow: hidden;
-  border-radius: 14px;
-  border: 1px solid rgba(89, 227, 255, 0.22);
-  background: rgba(6, 17, 31, 0.72);
-}
-
-.table-head,
-.table-row {
-  display: grid;
-  gap: 12px;
-  padding: 12px 14px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(89, 227, 255, 0.24);
+  border-radius: 7px;
+  background: rgba(6, 17, 31, 0.74);
+  color: rgba(234, 243, 252, 0.84);
   font-size: 12px;
 }
 
-.table-head {
-  color: #f3f9ff;
-  border-bottom: 1px solid rgba(89, 227, 255, 0.2);
+.action-btn:hover,
+.action-btn.primary {
+  color: #55f2df;
+  border-color: rgba(53, 246, 212, 0.56);
+  background: rgba(18, 76, 88, 0.44);
 }
 
-.table-row {
-  color: rgba(234, 243, 252, 0.82);
-}
-
-.table-empty {
-  padding: 24px 14px;
-  color: rgba(211, 225, 239, 0.56);
-  text-align: center;
-  font-size: 12px;
-}
-
-.table-head.compact,
-.table-row.compact {
-  grid-template-columns: 1.4fr 1fr;
-}
-
-.table-body.compact {
-  max-height: 220px;
-}
-
-.action-tag {
-  cursor: pointer;
-}
-
-.validation-list {
-  display: grid;
-  gap: 8px;
+.validation-box {
+  border: 1px solid rgba(255, 203, 114, 0.32);
+  border-radius: 8px;
+  background: rgba(6, 17, 31, 0.54);
   color: #ffcb72;
-  font-size: 12px;
-  line-height: 1.5;
+}
+
+.validation-box.ok {
+  border-color: rgba(53, 246, 212, 0.32);
+  color: #55f2df;
+}
+
+@media (max-width: 1180px) {
+  .config-drawer.control-drawer {
+    width: 360px !important;
+  }
 }
 </style>

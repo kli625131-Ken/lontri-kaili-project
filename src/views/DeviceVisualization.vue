@@ -107,9 +107,6 @@
                 {{ option.label }}
               </button>
             </div>
-            <button v-if="isDebugAvailable" class="toolbar-btn ghost" :class="{ active: debugVisible }" @click="debugEnabled = !debugEnabled">
-              Debug
-            </button>
           </div>
         </template>
 
@@ -132,20 +129,13 @@
             <defs>
               <mask v-if="displayFocusedRegion" :id="focusMaskId" maskUnits="userSpaceOnUse">
                 <rect
-                  :x="originalViewBox.x"
-                  :y="originalViewBox.y"
-                  :width="originalViewBox.width"
-                  :height="originalViewBox.height"
+                  :x="currentViewBox.x"
+                  :y="currentViewBox.y"
+                  :width="currentViewBox.width"
+                  :height="currentViewBox.height"
                   fill="white"
                 />
-                <rect
-                  :x="displayFocusedRegionBounds.x - 4"
-                  :y="displayFocusedRegionBounds.y - 4"
-                  :width="displayFocusedRegionBounds.width + 8"
-                  :height="displayFocusedRegionBounds.height + 8"
-                  rx="6"
-                  fill="black"
-                />
+                <polygon :points="pointsToString(displayFocusedRegion.points)" fill="black" />
               </mask>
             </defs>
 
@@ -162,11 +152,12 @@
               <g v-if="displayFocusedRegion" class="focus-mask-layer">
                 <rect
                   class="focus-dim"
-                  :x="originalViewBox.x"
-                  :y="originalViewBox.y"
-                  :width="originalViewBox.width"
-                  :height="originalViewBox.height"
+                  :x="currentViewBox.x"
+                  :y="currentViewBox.y"
+                  :width="currentViewBox.width"
+                  :height="currentViewBox.height"
                   :mask="`url(#${focusMaskId})`"
+                  @click.stop="exitFocusedRegion"
                 />
               </g>
 
@@ -175,6 +166,7 @@
                   v-for="region in regions"
                   :key="region.id"
                   class="interactive-node"
+                  :class="{ blocked: displayFocusedRegion && displayFocusedRegion.id !== region.id, 'focus-outside': displayFocusedRegion && displayFocusedRegion.id !== region.id }"
                   @mousedown.stop="handleRegionMouseDown($event, region)"
                   @click.stop="handleRegionClick(region)"
                 >
@@ -224,15 +216,27 @@
                       {{ region.memberIds.length }}台
                     </text>
                   </g>
-                  <g v-if="isConfigMode && activeEditTool === 'edit-region'" class="region-edit-handles">
+                  <g v-if="isConfigMode && activeEditTool === 'edit-region' && editingRegionId === region.id" class="region-edit-handles">
+                    <circle
+                      v-for="insertHandle in getPolygonInsertHandles(region)"
+                      :key="`${region.id}-${insertHandle.key}`"
+                      class="region-edit-handle insert"
+                      :cx="insertHandle.x"
+                      :cy="insertHandle.y"
+                      r="3.2"
+                      @mousedown.stop
+                      @click.stop="insertPolygonVertex(region, insertHandle.index)"
+                    />
                     <circle
                       v-for="handle in getRegionHandles(region)"
                       :key="`${region.id}-${handle.key}`"
                       class="region-edit-handle"
+                      :class="{ vertex: handle.type === 'vertex' }"
                       :cx="handle.x"
                       :cy="handle.y"
                       r="4"
                       @mousedown.stop="handleRegionHandleMouseDown($event, region, handle)"
+                      @dblclick.stop="deletePolygonVertex(region, handle)"
                     />
                   </g>
                 </g>
@@ -243,7 +247,7 @@
                   v-for="device in visibleGwDevices"
                   :key="device.id"
                   class="interactive-node"
-                  :class="{ dimmed: displayFocusedRegion && !isDeviceInFocusedRegion(device) }"
+                  :class="{ dimmed: displayFocusedRegion && !isDeviceInFocusedRegion(device), blocked: displayFocusedRegion && !isDeviceInFocusedRegion(device) }"
                   @mouseenter="hoveredDeviceId = device.id"
                   @mouseleave="hoveredDeviceId = ''"
                   @mousedown.stop="handleDeviceMouseDown($event, device)"
@@ -292,7 +296,7 @@
                   v-for="device in visibleCuDevices"
                   :key="device.id"
                   class="interactive-node"
-                  :class="{ dimmed: displayFocusedRegion && !isDeviceInFocusedRegion(device) }"
+                  :class="{ dimmed: displayFocusedRegion && !isDeviceInFocusedRegion(device), blocked: displayFocusedRegion && !isDeviceInFocusedRegion(device) }"
                   @mouseenter="hoveredDeviceId = device.id"
                   @mouseleave="hoveredDeviceId = ''"
                   @mousedown.stop="handleDeviceMouseDown($event, device)"
@@ -334,6 +338,43 @@
                     :stroke-width="getDeviceCodeLabel(device).strokeWidth"
                   >
                     {{ getDeviceCodeLabel(device).text }}
+                  </text>
+                </g>
+              </g>
+
+              <g class="region-label-hit-layer">
+                <g
+                  v-for="region in regions"
+                  :key="`region-label-hit-${region.id}`"
+                  class="region-label-hit-node"
+                  :class="{ blocked: displayFocusedRegion && displayFocusedRegion.id !== region.id, 'focus-outside': displayFocusedRegion && displayFocusedRegion.id !== region.id }"
+                  @click.stop="handleRegionClick(region)"
+                >
+                  <rect
+                    class="region-label-hit-box"
+                    :x="getRegionLabelHitBox(region).x"
+                    :y="getRegionLabelHitBox(region).y"
+                    :width="getRegionLabelHitBox(region).width"
+                    :height="getRegionLabelHitBox(region).height"
+                    rx="4"
+                  />
+                  <text
+                    class="region-label region-label-hit-text"
+                    :x="getRegionLabel(region).x"
+                    :y="getRegionLabel(region).y - 4"
+                    :font-size="getRegionCodeFontSize()"
+                    :stroke-width="getRegionTextStrokeWidth()"
+                  >
+                    {{ getRegionDisplayCode(region) }}
+                  </text>
+                  <text
+                    class="region-badge region-label-hit-text"
+                    :x="getRegionLabel(region).x"
+                    :y="getRegionLabel(region).y + 8"
+                    :font-size="getRegionBadgeFontSize()"
+                    :stroke-width="getRegionTextStrokeWidth()"
+                  >
+                    {{ region.memberIds.length }}台
                   </text>
                 </g>
               </g>
@@ -411,6 +452,16 @@
                   @contextmenu.prevent.stop="finishDrawing"
                 />
               </g>
+
+              <g v-if="displayFocusedRegion" class="focus-intercept-layer">
+                <path
+                  class="focus-exit-hit"
+                  :d="focusExitPath"
+                  fill-rule="evenodd"
+                  @mousedown.stop
+                  @click.stop="exitFocusedRegion"
+                />
+              </g>
             </g>
           </svg>
 
@@ -466,12 +517,7 @@
               :active-tool="activeEditTool"
               :expanded="configToolbarExpanded"
               :active-group="configToolbarGroup"
-              :device-draft="deviceDraft"
-              :gateway-options="gatewayOptions"
               @tool-change="setEditTool"
-              @device-draft-change="deviceDraft = $event"
-              @save-draft="handleSaveLocalDraft"
-              @validate="handleValidateDraft"
               @update:expanded="configToolbarExpanded = $event"
               @update:active-group="configToolbarGroup = $event"
             />
@@ -521,6 +567,7 @@
           <transition name="drawer-slide">
             <MapConfigDrawer
               v-if="configDrawerVisible"
+              :key="configDrawerKey"
               :target="configDrawerTarget"
               :target-type="configDrawerTargetType"
               :devices="cuDevices"
@@ -528,17 +575,16 @@
               :validation-messages="validationMessages"
               :initial-tab="configDrawerTab"
               @close="closeConfigDrawer"
+              @update-region="handleUpdateRegionInfo"
               @create-area-group="handleCreateAreaGroup"
               @bind-area-group="handleBindAreaGroup"
-              @skip-area-group="markDraftAction('已暂不配置区域组')"
+              @save-area-group="handleSaveAreaGroup"
               @create-default-scenes="handleCreateDefaultScenes"
-              @bind-scene="markDraftAction('已绑定已有场景到本地草稿')"
               @create-custom-scene="handleCreateCustomScene"
-              @skip-scene="markDraftAction('已暂不配置场景')"
+              @save-scene="handleSaveScene"
               @use-param-template="handleUseParamTemplate"
-              @copy-param="markDraftAction('已复制其他区域参数到本地草稿')"
-              @custom-param="handleCustomParam"
-              @skip-param="markDraftAction('已暂不配置 CU 参数')"
+              @save-cu-params="handleSaveCuParams"
+              @test-action="handleMockTestAction"
               @validate="handleValidateDraft"
             />
             <aside v-else-if="activeDrawer" class="control-drawer" :class="`drawer-${activeDrawer.type}`">
@@ -586,6 +632,7 @@
                       <button
                         class="action-btn"
                         :class="{ active: selectedCu.mode === 'manual' }"
+                        :disabled="!isConfigMode"
                         @click="selectedCu.mode = 'manual'"
                       >
                         手动
@@ -593,6 +640,7 @@
                       <button
                         class="action-btn"
                         :class="{ active: selectedCu.mode === 'auto' }"
+                        :disabled="!isConfigMode"
                         @click="selectedCu.mode = 'auto'"
                       >
                         自动感应
@@ -607,16 +655,22 @@
                       <span class="section-tag">0 - 100%</span>
                     </div>
                     <div class="metric-grid">
+                      <datalist id="brightness-percent-options">
+                        <option v-for="value in brightnessOptions" :key="value" :value="value"></option>
+                      </datalist>
                       <div class="metric-card">
                         <span class="metric-label">开机亮度</span>
                         <label class="metric-input-wrap">
                           <input
-                            v-model.number="selectedCu.brightness"
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="5"
+                            :value="selectedCu.brightness"
+                            list="brightness-percent-options"
+                            type="text"
+                            inputmode="numeric"
+                            pattern="[0-9]*"
+                            :readonly="!isConfigMode"
                             class="metric-input"
+                            @input="handlePercentInput($event, selectedCu, 'brightness')"
+                            @change="selectedCu.brightness = clampPercent(selectedCu.brightness)"
                           />
                           <span>%</span>
                         </label>
@@ -625,12 +679,15 @@
                         <span class="metric-label">背景亮度</span>
                         <label class="metric-input-wrap">
                           <input
-                            v-model.number="selectedCu.bgBrightness"
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="5"
+                            :value="selectedCu.bgBrightness"
+                            list="brightness-percent-options"
+                            type="text"
+                            inputmode="numeric"
+                            pattern="[0-9]*"
+                            :readonly="!isConfigMode"
                             class="metric-input"
+                            @input="handlePercentInput($event, selectedCu, 'bgBrightness')"
+                            @change="selectedCu.bgBrightness = clampPercent(selectedCu.bgBrightness)"
                           />
                           <span>%</span>
                         </label>
@@ -647,17 +704,50 @@
                       <label class="time-card">
                         <span class="time-title">进入背景亮度时间</span>
                         <span class="time-copy">无人感后，降低到“背景亮度”所需时间</span>
-                        <input v-model="selectedCu.bgTime" type="number" min="0" class="time-input" />
+                        <span class="time-input-wrap">
+                          <input
+                            :value="selectedCu.bgTime"
+                            type="text"
+                            inputmode="numeric"
+                            pattern="[0-9]*"
+                            :readonly="!isConfigMode"
+                            class="time-input"
+                            @input="handleDurationInput($event, selectedCu, 'bgTime')"
+                          />
+                          <span>秒</span>
+                        </span>
                       </label>
                       <label class="time-card">
                         <span class="time-title">进入关灯时间</span>
                         <span class="time-copy">无人感后，彻底关闭灯所需时间</span>
-                        <input v-model="selectedCu.offTime" type="number" min="0" class="time-input" />
+                        <span class="time-input-wrap">
+                          <input
+                            :value="selectedCu.offTime"
+                            type="text"
+                            inputmode="numeric"
+                            pattern="[0-9]*"
+                            :readonly="!isConfigMode"
+                            class="time-input"
+                            @input="handleDurationInput($event, selectedCu, 'offTime')"
+                          />
+                          <span>秒</span>
+                        </span>
                       </label>
                       <label class="time-card">
                         <span class="time-title">手动模式持续时间</span>
                         <span class="time-copy">手动模式下无人感保持时长，到期恢复自动</span>
-                        <input v-model="selectedCu.manualTime" type="number" min="0" class="time-input" />
+                        <span class="time-input-wrap">
+                          <input
+                            :value="selectedCu.manualTime"
+                            type="text"
+                            inputmode="numeric"
+                            pattern="[0-9]*"
+                            :readonly="!isConfigMode"
+                            class="time-input"
+                            @input="handleDurationInput($event, selectedCu, 'manualTime')"
+                          />
+                          <span>秒</span>
+                        </span>
                       </label>
                     </div>
                     <p class="section-desc dim">
@@ -682,7 +772,7 @@
                     </div>
                   </section>
 
-                  <button class="footer-btn" @click="commitDrawerMessage(`已更新 ${selectedCu.shortName} 参数配置`)">
+                  <button v-if="isConfigMode" class="footer-btn" @click="commitDrawerMessage(`已更新 ${selectedCu.shortName} 参数配置`)">
                     修改参数配置
                   </button>
                 </template>
@@ -736,7 +826,7 @@
                         :key="mode.value"
                         class="action-btn icon-btn"
                         :class="{ active: selectedArea.sceneMode === mode.value }"
-                        @click="selectedArea.sceneMode = mode.value"
+                        @click="setAreaSceneMode(mode.value)"
                       >
                         {{ mode.label }}
                       </button>
@@ -757,7 +847,7 @@
                         :key="`tab-${mode.value}`"
                         class="scene-tab"
                         :class="{ active: selectedArea.sceneMode === mode.value }"
-                        @click="selectedArea.sceneMode = mode.value"
+                        disabled
                       >
                         {{ mode.label }}
                       </button>
@@ -794,7 +884,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue'
 import DataCard from '../components/DataCard.vue'
 import MapConfigDrawer from '../components/deviceMap/MapConfigDrawer.vue'
 import MapEditToolbar from '../components/deviceMap/MapEditToolbar.vue'
@@ -817,13 +907,15 @@ import {
 import {
   createDraftFromOverlay,
   createInitialDraftState,
-  loadLocalDraft,
+  loadMapState,
+  mockControl,
   removeDeviceFromDraft,
-  saveLocalDraft,
+  saveDraft,
   upsertAreaGroup,
   validateAreaGroupGateway,
   validateDraftState
 } from '../services/deviceMapLocalService'
+import { DEVICE_MAP_PROJECT_ID } from '../mock/deviceMapMockData'
 
 const mapSvgRef = ref(null)
 const mapContentRef = ref(null)
@@ -858,15 +950,12 @@ const draftState = ref(createInitialDraftState(DEFAULT_DEVICE_VISUALIZATION_MAP_
 const configDrawerTarget = ref(null)
 const configDrawerTargetType = ref('')
 const configDrawerTab = ref('base')
+const configDrawerOpenSeq = ref(0)
 const validationMessages = ref([])
 const drawingShape = ref(null)
 const editDragState = ref(null)
+const editingRegionId = ref('')
 const editHistory = ref([])
-const deviceDraft = ref({
-  type: 'cu',
-  gatewayId: '',
-  deviceNo: ''
-})
 
 const cuDevices = ref([])
 const gwDevices = ref([])
@@ -927,22 +1016,14 @@ const operationPrimaryEnabled = computed(() => {
   if (activeEditTool.value === 'draw-rect' || activeEditTool.value === 'draw-circle') return !!drawingShape.value
   return true
 })
-const gatewayOptions = computed(() => {
-  const gateways = new Map()
-  gwDevices.value.forEach((device) => {
-    gateways.set(device.gatewayId || device.id, device.shortName || device.name || device.id)
-  })
-  cuDevices.value.forEach((device) => {
-    if (device.gatewayId) gateways.set(device.gatewayId, device.gatewayId)
-  })
-  return Array.from(gateways.entries()).map(([value, label]) => ({ value, label }))
-})
 const configDrawerVisible = computed(() => isConfigMode.value && !!configDrawerTarget.value)
+const configDrawerKey = computed(() => `${configDrawerTarget.value?.id || 'map'}-${configDrawerTab.value}-${configDrawerOpenSeq.value}`)
 
 const mapSvgClasses = computed(() => ({
   'is-zoomed': zoomLevel.value > 1.4,
   'is-high-zoom': zoomLevel.value >= REGION_GLOW_DISABLE_ZOOM,
-  'is-middle-panning': isMiddlePanning.value
+  'is-middle-panning': isMiddlePanning.value,
+  'is-region-tool': isConfigMode.value && ['select', 'edit-region', 'delete-region'].includes(activeEditTool.value)
 }))
 
 const floorLayerClasses = computed(() => ({
@@ -964,6 +1045,13 @@ const displayFocusedRegionBounds = computed(() => {
   if (!displayFocusedRegion.value) return { x: 0, y: 0, width: 0, height: 0 }
   const bbox = getPointsBBox(displayFocusedRegion.value.points)
   return { x: bbox.minX, y: bbox.minY, width: bbox.width, height: bbox.height }
+})
+const focusExitPath = computed(() => {
+  if (!displayFocusedRegion.value) return ''
+  const { x, y, width, height } = currentViewBox.value
+  const outer = `M${x},${y}H${x + width}V${y + height}H${x}Z`
+  const inner = `M${displayFocusedRegion.value.points.map((point) => `${point.x},${point.y}`).join('L')}Z`
+  return `${outer} ${inner}`
 })
 
 const drawerTitle = computed(() => {
@@ -1009,12 +1097,23 @@ const deviceLayerOptions = [
   { label: 'CU', value: 'cu' },
   { label: '网关', value: 'gw' }
 ]
+const brightnessOptions = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+const editToolValues = new Set([
+  'select',
+  'draw-rect',
+  'draw-circle',
+  'draw-polygon',
+  'edit-region',
+  'delete-region',
+  'move-device',
+  'delete-device'
+])
 
 const visibleCuDevices = computed(() => (deviceLayerFilter.value === 'gw' ? [] : cuDevices.value))
 const visibleGwDevices = computed(() => (deviceLayerFilter.value === 'cu' ? [] : gwDevices.value))
 const miniMapDevices = computed(() => [...visibleCuDevices.value, ...visibleGwDevices.value])
 const focusedCodeDevices = computed(() => {
-  if (!focusedRegion.value) return []
+  if (!displayFocusedRegion.value) return []
   return [...visibleGwDevices.value, ...visibleCuDevices.value].filter((device) => isDeviceInFocusedRegion(device))
 })
 const deviceCodeLabelMap = computed(() => buildDeviceCodeLabelMap())
@@ -1105,7 +1204,7 @@ function getInitialExpandedTreeIds(nodes) {
 function handleMapModeChange(mode) {
   if (mode === mapMode.value) return
   if (mode === 'config') {
-    const confirmed = window.confirm('进入配置调试模式后可新增、移动、删除设备和区域。本阶段仅保存前端本地草稿，确认进入？')
+    const confirmed = window.confirm('进入配置调试模式后可新增、移动、删除设备和区域。确认进入？')
     if (!confirmed) return
   }
 
@@ -1122,9 +1221,11 @@ function handleMapModeChange(mode) {
   editDragState.value = null
   if (mode === 'config') {
     focusedRegionId.value = ''
+    activeDrawer.value = null
   }
   if (mode === 'default') {
     closeConfigToolbarPanel()
+    activeDrawer.value = null
   }
   closeConfigDrawer()
   if (mode === 'default') {
@@ -1133,6 +1234,13 @@ function handleMapModeChange(mode) {
 }
 
 function setEditTool(tool) {
+  if (!editToolValues.has(tool)) {
+    activeEditTool.value = 'select'
+    syncConfigToolbarGroup('select')
+    commitDrawerMessage('请在右侧配置抽屉内完成参数配置')
+    return
+  }
+
   if (editDragState.value) {
     cancelActiveEditDrag('已取消编辑')
   } else {
@@ -1144,24 +1252,8 @@ function setEditTool(tool) {
   clearDraft()
   drawingShape.value = null
   editDragState.value = null
+  editingRegionId.value = ''
   drawMode.value = tool === 'draw-polygon'
-
-  if (tool === 'validate') {
-    handleValidateDraft()
-    openConfigDrawer(selectedArea.value || { id: 'current-map', name: '当前地图' }, selectedArea.value ? 'area' : 'map', 'validate')
-    return
-  }
-
-  if (['area-group', 'scene', 'cu-param'].includes(tool)) {
-    if (selectedArea.value) {
-      openConfigDrawer(selectedArea.value, 'area', getConfigTabByTool(tool))
-      commitDrawerMessage(`已打开${getEditToolLabel(tool)}`)
-    } else {
-      closeConfigDrawer()
-      commitDrawerMessage(`请先选择区域，再进行${getEditToolLabel(tool)}`)
-    }
-    return
-  }
 
   commitDrawerMessage(getEditToolFeedback(tool))
 }
@@ -1171,16 +1263,9 @@ function syncConfigToolbarGroup(tool) {
     configToolbarGroup.value = 'region'
     return
   }
-  if (['add-device', 'move-device', 'delete-device'].includes(tool)) {
+  if (['move-device', 'delete-device'].includes(tool)) {
     configToolbarGroup.value = 'device'
     return
-  }
-  if (['area-group', 'scene', 'cu-param'].includes(tool)) {
-    configToolbarGroup.value = 'config'
-    return
-  }
-  if (tool === 'validate') {
-    configToolbarGroup.value = 'debug'
   }
 }
 
@@ -1205,13 +1290,8 @@ function getEditToolLabel(tool) {
     'draw-polygon': '新建多边形区域',
     'edit-region': '编辑区域',
     'delete-region': '删除区域',
-    'add-device': '添加设备',
     'move-device': '移动设备',
-    'delete-device': '删除设备',
-    'area-group': '区域配置',
-    scene: '场景配置',
-    'cu-param': 'CU 参数',
-    validate: '测试校准'
+    'delete-device': '删除设备'
   }[tool] || '工具'
 }
 
@@ -1223,10 +1303,41 @@ function getEditToolFeedback(tool) {
     'draw-polygon': '已进入新建多边形区域',
     'edit-region': '已进入区域编辑，点击区域开始编辑',
     'delete-region': '已进入删除区域，点击区域删除',
-    'add-device': '已进入添加设备，点击地图放置设备',
     'move-device': '已进入移动设备，拖动设备调整位置',
     'delete-device': '已进入删除设备，点击设备删除'
   }[tool] || `已切换到${getEditToolLabel(tool)}`
+}
+
+function clampPercent(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return 0
+  return Math.min(100, Math.max(0, Math.round(numericValue)))
+}
+
+function normalizeDigitText(value) {
+  return String(value ?? '').replace(/\D/g, '')
+}
+
+function handlePercentInput(event, target, key) {
+  if (!target || !key) return
+  const value = normalizeDigitText(event.target.value)
+  const clampedValue = value === '' ? '' : clampPercent(value)
+  target[key] = clampedValue
+  event.target.value = clampedValue
+}
+
+function handleDurationInput(event, target, key) {
+  if (!target || !key) return
+  const value = normalizeDigitText(event.target.value)
+  target[key] = value === '' ? '' : Number(value)
+  event.target.value = value
+}
+
+function setAreaSceneMode(mode) {
+  if (!selectedArea.value) return
+  selectedArea.value.sceneMode = mode
+  const label = areaModes.find((item) => item.value === mode)?.label || '场景'
+  commitDrawerMessage(`已切换到${label}`)
 }
 
 function resetMapInteractionState() {
@@ -1243,6 +1354,7 @@ function resetMapInteractionState() {
   drawingShape.value = null
   editDragState.value = null
   editHistory.value = []
+  editingRegionId.value = ''
   closeConfigDrawer()
   if (mapMeta.value) currentViewBox.value = { ...originalViewBox.value }
 }
@@ -1859,15 +1971,16 @@ function applyOverlayData(overlay) {
   activeDrawer.value = null
   focusedRegionId.value = ''
   const floorId = selectedMapId.value
-  const localDraft = loadLocalDraft(floorId)
-  const activeOverlay = normalizeSavedOverlay(localDraft?.overlay) || overlay
+  const mapState = loadMapState(DEVICE_MAP_PROJECT_ID, floorId, overlay)
 
-  cuDevices.value = activeOverlay.cuDevices
-  gwDevices.value = activeOverlay.gwDevices
-  regions.value = recalculateRegions(activeOverlay.regions)
-  draftState.value = localDraft
-    ? normalizeLoadedDraftState(localDraft, floorId)
-    : createDraftFromOverlay(floorId, regions.value, [...cuDevices.value, ...gwDevices.value])
+  cuDevices.value = mapState.cuDevices
+  gwDevices.value = mapState.gwDevices
+  regions.value = recalculateRegions(mapState.regions)
+  draftState.value = {
+    ...mapState.draftState,
+    regions: regions.value,
+    devices: [...cuDevices.value, ...gwDevices.value]
+  }
   validationMessages.value = validateDraftState(draftState.value, cuDevices.value)
 }
 
@@ -1995,7 +2108,7 @@ async function handleRegionClick(region) {
   if (drawMode.value) return
 
   if (isConfigMode.value) {
-    handleConfigRegionClick(region)
+    await handleConfigRegionClick(region)
     return
   }
 
@@ -2014,16 +2127,27 @@ async function handleRegionClick(region) {
   commitDrawerMessage(`已聚焦到 ${region.name}`)
 }
 
-function handleConfigRegionClick(region) {
+async function handleConfigRegionClick(region) {
   if (activeEditTool.value === 'delete-region') {
     deleteRegion(region)
     return
   }
 
-  if (['area-group', 'scene', 'cu-param', 'validate', 'edit-region', 'select'].includes(activeEditTool.value)) {
+  if (activeEditTool.value === 'edit-region') {
     activeDrawer.value = null
     focusedRegionId.value = ''
-    openConfigDrawer(region, 'area', getConfigTabByTool(activeEditTool.value))
+    editingRegionId.value = region.id
+    openConfigDrawer(region, 'area', 'base')
+    commitDrawerMessage(`正在编辑 ${region.name || region.id}`)
+    return
+  }
+
+  if (activeEditTool.value === 'select') {
+    activeDrawer.value = null
+    focusedRegionId.value = ''
+    editingRegionId.value = ''
+    openConfigDrawer(region, 'area', 'base')
+    commitDrawerMessage(`已打开 ${region.name} 配置`)
   }
 }
 
@@ -2083,11 +2207,6 @@ function handleMapBlankClick(event) {
     target.closest?.('.map-floor-layer')
   ) {
     closeConfigToolbarPanel()
-
-    if (isConfigMode.value && activeEditTool.value === 'add-device') {
-      addDeviceAtEvent(event)
-      return
-    }
 
     clearActiveDevice()
     if (focusedRegionId.value) resetView()
@@ -2313,6 +2432,7 @@ function cancelConfigOperation() {
   if (editDragState.value) {
     cancelActiveEditDrag('已取消编辑')
     activeEditTool.value = 'select'
+    editingRegionId.value = ''
     return
   }
 
@@ -2328,6 +2448,7 @@ function cancelConfigOperation() {
 
   if (activeEditTool.value !== 'select') {
     activeEditTool.value = 'select'
+    editingRegionId.value = ''
     closeConfigDrawer()
     commitDrawerMessage('已退出当前工具')
   }
@@ -2366,8 +2487,42 @@ function handleOperationPrimary() {
   }
 }
 
+function clonePlainData(value, seen = new WeakSet()) {
+  const rawValue = toRaw(value)
+  if (rawValue === null || typeof rawValue !== 'object') return rawValue
+  if (seen.has(rawValue)) return undefined
+
+  if (Array.isArray(rawValue)) {
+    seen.add(rawValue)
+    return rawValue.map((item) => clonePlainData(item, seen)).filter((item) => item !== undefined)
+  }
+
+  if (Object.getPrototypeOf(rawValue) !== Object.prototype) return undefined
+
+  seen.add(rawValue)
+  return Object.entries(rawValue).reduce((result, [key, item]) => {
+    if (typeof item === 'function') return result
+    const cloned = clonePlainData(item, seen)
+    if (cloned !== undefined) result[key] = cloned
+    return result
+  }, {})
+}
+
+function cloneGeometry(geometry) {
+  if (!geometry) return {}
+  if (Array.isArray(geometry.points)) {
+    return {
+      points: geometry.points.map((point) => ({
+        x: Number(point.x),
+        y: Number(point.y)
+      }))
+    }
+  }
+  return clonePlainData(geometry) || {}
+}
+
 function createMapSnapshot() {
-  return structuredClone({
+  return clonePlainData({
     regions: regions.value,
     cuDevices: cuDevices.value,
     gwDevices: gwDevices.value,
@@ -2571,6 +2726,11 @@ function clearFocusRegion() {
   resetView()
 }
 
+function exitFocusedRegion() {
+  closeDrawer()
+  clearFocusRegion()
+}
+
 function getRegionShapeType(region) {
   return normalizeRegionShape(region).shapeType
 }
@@ -2596,11 +2756,63 @@ function getRegionHandles(region) {
   }
   if (shapeType === 'CIRCLE') {
     return [
-      { key: 'center', x: geometry.cx, y: geometry.cy },
-      { key: 'radius', x: geometry.cx + geometry.radius, y: geometry.cy }
+      { key: 'center', type: 'center', x: geometry.cx, y: geometry.cy },
+      { key: 'radius', type: 'radius', x: geometry.cx + geometry.radius, y: geometry.cy }
     ]
   }
-  return (geometry.points || []).map((point, index) => ({ key: `vertex-${index}`, index, x: point.x, y: point.y }))
+  return (geometry.points || []).map((point, index) => ({
+    key: `vertex-${index}`,
+    type: 'vertex',
+    index,
+    x: point.x,
+    y: point.y
+  }))
+}
+
+function getPolygonInsertHandles(region) {
+  if (getRegionShapeType(region) !== 'POLYGON') return []
+  const points = getRegionGeometry(region).points || []
+  if (points.length < 2) return []
+  return points.map((point, index) => {
+    const nextPoint = points[(index + 1) % points.length]
+    return {
+      key: `insert-${index}`,
+      index: index + 1,
+      x: (point.x + nextPoint.x) / 2,
+      y: (point.y + nextPoint.y) / 2
+    }
+  })
+}
+
+function insertPolygonVertex(region, index) {
+  if (getRegionShapeType(region) !== 'POLYGON') return
+  const points = [...(getRegionGeometry(region).points || [])]
+  if (points.length < 2) return
+  const previousIndex = (index - 1 + points.length) % points.length
+  const nextIndex = index % points.length
+  const point = {
+    x: (points[previousIndex].x + points[nextIndex].x) / 2,
+    y: (points[previousIndex].y + points[nextIndex].y) / 2
+  }
+  recordMapHistory()
+  points.splice(index, 0, point)
+  updateRegionGeometry(region.id, 'POLYGON', { points })
+  editingRegionId.value = region.id
+  commitDrawerMessage('已新增顶点')
+}
+
+function deletePolygonVertex(region, handle) {
+  if (getRegionShapeType(region) !== 'POLYGON' || handle.type !== 'vertex') return
+  const points = [...(getRegionGeometry(region).points || [])]
+  if (points.length <= 3) {
+    commitDrawerMessage('多边形至少保留 3 个顶点')
+    return
+  }
+  recordMapHistory()
+  points.splice(handle.index, 1)
+  updateRegionGeometry(region.id, 'POLYGON', { points })
+  editingRegionId.value = region.id
+  commitDrawerMessage('已删除顶点')
 }
 
 function handleRegionMouseDown(event, region) {
@@ -2608,12 +2820,13 @@ function handleRegionMouseDown(event, region) {
   const point = clientToMapPoint(event)
   if (!point) return
   event.preventDefault()
+  editingRegionId.value = region.id
 
   editDragState.value = {
     type: 'region',
     regionId: region.id,
     start: point,
-    originalGeometry: structuredClone(getRegionGeometry(region)),
+    originalGeometry: cloneGeometry(getRegionGeometry(region)),
     shapeType: getRegionShapeType(region),
     beforeSnapshot: createMapSnapshot()
   }
@@ -2626,13 +2839,14 @@ function handleRegionHandleMouseDown(event, region, handle) {
   const point = clientToMapPoint(event)
   if (!point) return
   event.preventDefault()
+  editingRegionId.value = region.id
 
   editDragState.value = {
     type: 'region-handle',
     regionId: region.id,
     start: point,
     handle,
-    originalGeometry: structuredClone(getRegionGeometry(region)),
+    originalGeometry: cloneGeometry(getRegionGeometry(region)),
     shapeType: getRegionShapeType(region),
     beforeSnapshot: createMapSnapshot()
   }
@@ -2784,68 +2998,6 @@ function deleteRegion(region) {
   commitDrawerMessage(`已删除区域 ${region.name || region.id}`)
 }
 
-function addDeviceAtEvent(event) {
-  const point = clientToMapPoint(event)
-  if (!point) return
-  const type = normalizeDeviceType(deviceDraft.value.type)
-  const gatewayId = deviceDraft.value.gatewayId
-  const deviceNo = deviceDraft.value.deviceNo?.trim()
-  if (!type || !gatewayId || !deviceNo) {
-    commitDrawerMessage('请先选择设备类型、所属网关并填写设备编号')
-    return
-  }
-
-  recordMapHistory()
-  const cadPoint = svgToCad(point)
-  const id = `${gatewayId}-${type.toUpperCase()}-${deviceNo}`
-  const device = {
-    id,
-    name: id,
-    shortName: deviceNo,
-    type,
-    gatewayId,
-    zigbeeId: type === 'cu' ? deviceNo : '',
-    iconUrl: getDeviceIconUrl({ type }),
-    regionId: '',
-    sourceFields: {
-      GWNO: gatewayId,
-      ZIGBEENO: type === 'cu' ? deviceNo : '',
-      DEVICETYPE: type.toUpperCase()
-    },
-    cadX: cadPoint.x,
-    cadY: cadPoint.y,
-    x: point.x,
-    y: point.y,
-    online: true,
-    power: type === 'cu',
-    mode: 'auto',
-    brightness: type === 'cu' ? 100 : 0,
-    bgBrightness: type === 'cu' ? 40 : 0,
-    bgTime: 900,
-    offTime: 1200,
-    manualTime: 1250,
-    firmware: '前端新增',
-    updatedAt: '本地草稿'
-  }
-
-  if (type === 'gw') {
-    gwDevices.value = [...gwDevices.value, device]
-  } else {
-    cuDevices.value = [...cuDevices.value, device]
-  }
-  regions.value = recalculateRegions(regions.value)
-  syncAreaGroupsWithRegions(regions.value)
-  draftState.value = {
-    ...draftState.value,
-    dirty: true
-  }
-  deviceDraft.value = {
-    ...deviceDraft.value,
-    deviceNo: ''
-  }
-  commitDrawerMessage(`已新增 ${device.shortName}`)
-}
-
 function deleteDevice(device) {
   const confirmed = window.confirm(`确认删除设备 ${device.shortName || device.id}？`)
   if (!confirmed) return
@@ -2876,12 +3028,27 @@ function openConfigDrawer(target, targetType = 'area', tab = 'base') {
   configDrawerTarget.value = target
   configDrawerTargetType.value = targetType
   configDrawerTab.value = tab || 'base'
+  configDrawerOpenSeq.value += 1
 }
 
 function closeConfigDrawer() {
   configDrawerTarget.value = null
   configDrawerTargetType.value = ''
   configDrawerTab.value = 'base'
+}
+
+function handleUpdateRegionInfo(nextRegion) {
+  if (!nextRegion?.id) return
+  recordMapHistory()
+  regions.value = regions.value.map((region) => (region.id === nextRegion.id ? { ...region, ...nextRegion } : region))
+  const updatedRegion = regions.value.find((region) => region.id === nextRegion.id)
+  if (updatedRegion) configDrawerTarget.value = updatedRegion
+  draftState.value = {
+    ...draftState.value,
+    dirty: true,
+    regions: regions.value
+  }
+  commitDrawerMessage('已更新区域基础信息')
 }
 
 function handleCreateAreaGroup(region) {
@@ -2907,12 +3074,39 @@ function handleCreateAreaGroup(region) {
     gatewayId: validation.gatewayId
   })
   validationMessages.value = []
-  commitDrawerMessage('已创建区域组本地草稿')
+  commitDrawerMessage('已保存草稿')
 }
 
 function handleBindAreaGroup(region) {
   handleCreateAreaGroup(region)
-  commitDrawerMessage('已绑定已有区域组到本地草稿')
+  commitDrawerMessage('已保存草稿')
+}
+
+function handleSaveAreaGroup(payload) {
+  const region = payload.region
+  const memberIds = collectDevicesInShape(region, cuDevices.value)
+  const group = {
+    id: `ag-${region.id}`,
+    name: payload.areaGroup?.name || `${region.name || region.id}区域组`,
+    groupNo: payload.areaGroup?.groupNo || '',
+    regionId: region.id,
+    gatewayId: '',
+    memberIds,
+    mode: 'draft'
+  }
+  const validation = validateAreaGroupGateway(group, cuDevices.value)
+  if (!validation.ok) {
+    validationMessages.value = [validation.message]
+    configDrawerTab.value = 'validate'
+    commitDrawerMessage('配置未完成')
+    return
+  }
+  draftState.value = upsertAreaGroup(draftState.value, {
+    ...group,
+    gatewayId: validation.gatewayId
+  })
+  validationMessages.value = []
+  commitDrawerMessage('已保存草稿')
 }
 
 function handleCreateDefaultScenes(region) {
@@ -2926,7 +3120,7 @@ function handleCreateDefaultScenes(region) {
       { id: `scene-${region.id}-saving`, regionId: region.id, name: '50% 节能', brightness: 50 }
     ]
   }
-  commitDrawerMessage('已创建默认场景本地草稿')
+  commitDrawerMessage('已保存草稿')
 }
 
 function handleCreateCustomScene(region) {
@@ -2938,7 +3132,29 @@ function handleCreateCustomScene(region) {
       { id: `scene-${region.id}-${Date.now()}`, regionId: region.id, name: '自定义场景', brightness: 80 }
     ]
   }
-  commitDrawerMessage('已创建自定义场景本地草稿')
+  commitDrawerMessage('已保存草稿')
+}
+
+function handleSaveScene(payload) {
+  const region = payload.region
+  const scene = payload.scene || {}
+  const brightness = clampPercent(scene.brightness)
+  draftState.value = {
+    ...draftState.value,
+    dirty: true,
+    scenes: [
+      ...(draftState.value.scenes || []).filter((item) => item.id !== `scene-${region.id}-custom`),
+      {
+        id: `scene-${region.id}-custom`,
+        regionId: region.id,
+        name: scene.name || '自定义场景',
+        defaultScene: scene.defaultScene || 'on',
+        brightness,
+        colorTemperature: Number(scene.colorTemperature) || 4000
+      }
+    ]
+  }
+  commitDrawerMessage('已保存草稿')
 }
 
 function handleUseParamTemplate(region) {
@@ -2949,24 +3165,33 @@ function handleCustomParam(region) {
   upsertCuParamDraft(region, 'custom')
 }
 
-function upsertCuParamDraft(region, mode) {
+function handleSaveCuParams(payload) {
+  upsertCuParamDraft(payload.region, 'custom', payload.params)
+}
+
+function upsertCuParamDraft(region, mode, params = {}) {
   const memberIds = collectDevicesInShape(region, cuDevices.value)
+  const id = `param-${region.id}-${mode}`
   draftState.value = {
     ...draftState.value,
     dirty: true,
-    cuParams: [
-      ...draftState.value.cuParams.filter((item) => item.regionId !== region.id || item.mode !== mode),
+    cuParamConfigs: [
+      ...(draftState.value.cuParamConfigs || []).filter((item) => item.id !== id),
       {
-        id: `param-${region.id}-${mode}`,
+        id,
         regionId: region.id,
         mode,
         memberIds,
         brightness: 100,
-        bgBrightness: 40
+        bgBrightness: 40,
+        bgTime: 60,
+        offTime: 300,
+        manualTime: 1800,
+        ...params
       }
     ]
   }
-  commitDrawerMessage(mode === 'template' ? '已使用参数模板生成本地草稿' : '已创建自定义参数本地草稿')
+  commitDrawerMessage('已保存草稿')
 }
 
 function markDraftAction(message) {
@@ -2980,19 +3205,28 @@ function markDraftAction(message) {
 function handleValidateDraft() {
   validationMessages.value = validateDraftState(draftState.value, cuDevices.value)
   configDrawerTab.value = 'validate'
-  commitDrawerMessage(validationMessages.value.length ? '校验发现问题' : '完整性校验通过')
+  commitDrawerMessage(validationMessages.value.length ? '配置未完成' : '校验通过')
+}
+
+function handleMockTestAction(action) {
+  const result = mockControl(action)
+  commitDrawerMessage(result.ok ? '模拟测试通过' : '模拟测试失败')
 }
 
 function handleSaveLocalDraft() {
-  const ok = saveLocalDraft(selectedMapId.value, draftState.value, createCurrentOverlayDraft())
+  const ok = saveDraft(DEVICE_MAP_PROJECT_ID, selectedMapId.value, {
+    draftState: draftState.value,
+    overlay: createCurrentOverlayDraft()
+  })
   if (ok) {
     draftState.value = {
       ...draftState.value,
-      dirty: false
+      dirty: false,
+      currentDraftState: 'saved'
     }
-    commitDrawerMessage('已保存前端本地草稿')
+    commitDrawerMessage('已保存草稿')
   } else {
-    commitDrawerMessage('本地草稿保存失败')
+    commitDrawerMessage('保存草稿失败')
   }
 }
 
@@ -3012,8 +3246,11 @@ function openDrawer(type, entity) {
       deleteDevice(entity)
       return
     }
-    if (activeEditTool.value === 'select') {
+    if (activeEditTool.value !== 'move-device') {
+      closeConfigDrawer()
+      focusedRegionId.value = ''
       activeDrawer.value = { type, entity }
+      commitDrawerMessage(`已打开 ${entity.shortName || entity.id} 控制面板`)
     }
     return
   }
@@ -3204,6 +3441,21 @@ function getRegionLabel(region) {
     .sort((left, right) => right.score - left.score)[0].point
 }
 
+function getRegionLabelHitBox(region) {
+  const label = getRegionLabel(region)
+  const codeFontSize = getRegionCodeFontSize()
+  const badgeFontSize = getRegionBadgeFontSize()
+  const text = `${getRegionDisplayCode(region)}${region.memberIds.length}台`
+  const width = Math.max(44, text.length * codeFontSize * 0.46)
+  const height = codeFontSize + badgeFontSize + 12
+  return {
+    x: label.x - width / 2,
+    y: label.y - codeFontSize - 10,
+    width,
+    height
+  }
+}
+
 function getRegionDisplayCode(region) {
   return String(region.name || region.id).replace('GWA06#', '')
 }
@@ -3217,8 +3469,8 @@ function getRegionStyle(region) {
 }
 
 function isDeviceInFocusedRegion(device) {
-  if (!focusedRegion.value) return true
-  return isDeviceInRegion(focusedRegion.value, device)
+  if (!displayFocusedRegion.value) return true
+  return isDeviceInRegion(displayFocusedRegion.value, device)
 }
 
 function isDeviceInRegion(region, device) {
@@ -3638,6 +3890,11 @@ function clamp(value, min, max) {
   cursor: grabbing;
 }
 
+.map-svg.is-region-tool .device-layer .interactive-node,
+.map-svg.is-region-tool .device-hit-area {
+  pointer-events: none;
+}
+
 .map-svg.is-zoomed {
   shape-rendering: geometricPrecision;
 }
@@ -3673,6 +3930,14 @@ function clamp(value, min, max) {
 
 .interactive-node {
   cursor: pointer;
+}
+
+.interactive-node.blocked {
+  pointer-events: none;
+}
+
+.interactive-node.focus-outside {
+  opacity: 0.2;
 }
 
 .region-shape {
@@ -3718,6 +3983,34 @@ function clamp(value, min, max) {
   font-weight: 600;
   paint-order: stroke;
   stroke: rgba(44, 54, 66, 0.42);
+  pointer-events: none;
+}
+
+.region-label-hit-layer {
+  pointer-events: none;
+}
+
+.region-label-hit-node {
+  cursor: pointer;
+  pointer-events: all;
+}
+
+.region-label-hit-node.blocked {
+  pointer-events: none;
+}
+
+.region-label-hit-box {
+  fill: transparent;
+  stroke: transparent;
+}
+
+.region-label-hit-node:hover .region-label-hit-box {
+  fill: rgba(53, 246, 212, 0.1);
+  stroke: rgba(53, 246, 212, 0.34);
+  vector-effect: non-scaling-stroke;
+}
+
+.region-label-hit-text {
   pointer-events: none;
 }
 
@@ -3787,6 +4080,15 @@ function clamp(value, min, max) {
 .focus-dim {
   fill: #17212d;
   opacity: 0.3;
+}
+
+.focus-intercept-layer {
+  pointer-events: none;
+}
+
+.focus-exit-hit {
+  fill: rgba(255, 255, 255, 0.01);
+  pointer-events: all;
 }
 
 .drawing-preview {
@@ -4354,6 +4656,17 @@ function clamp(value, min, max) {
   box-shadow: 0 0 18px rgba(53, 246, 212, 0.12);
 }
 
+.action-btn:disabled {
+  cursor: default;
+}
+
+.action-btn:disabled:not(.active) {
+  color: var(--text-3);
+  border-color: rgba(89, 227, 255, 0.16);
+  background: rgba(6, 17, 31, 0.46);
+  box-shadow: none;
+}
+
 .section-desc {
   margin-top: 10px;
   color: var(--text-3);
@@ -4410,8 +4723,23 @@ function clamp(value, min, max) {
   text-align: right;
 }
 
+.metric-input:read-only,
+.time-input:read-only {
+  cursor: default;
+  color: rgba(234, 243, 252, 0.68);
+}
+
+.metric-input-wrap:has(.metric-input:read-only),
+.time-input-wrap:has(.time-input:read-only) {
+  border-color: rgba(89, 227, 255, 0.12);
+  background: rgba(4, 14, 28, 0.46);
+}
+
 .metric-input::-webkit-outer-spin-button,
-.metric-input::-webkit-inner-spin-button {
+.metric-input::-webkit-inner-spin-button,
+.time-input::-webkit-outer-spin-button,
+.time-input::-webkit-inner-spin-button {
+  appearance: none;
   margin: 0;
 }
 
@@ -4439,12 +4767,28 @@ function clamp(value, min, max) {
   font-size: 12px;
 }
 
-.time-input {
-  width: 100%;
-  padding: 10px 12px;
+.time-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 10px;
   border-radius: 10px;
+  border: 1px solid rgba(89, 227, 255, 0.22);
+  background: rgba(4, 14, 28, 0.74);
   color: var(--accent-teal);
   font-family: var(--font-num);
+}
+
+.time-input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--accent-teal);
+  font-family: var(--font-num);
+  text-align: right;
 }
 
 .status-card {
@@ -4483,6 +4827,11 @@ function clamp(value, min, max) {
   background: rgba(6, 17, 31, 0.66);
   color: var(--text-2);
   font-size: 13px;
+}
+
+.scene-tab:disabled {
+  cursor: default;
+  opacity: 1;
 }
 
 .table-card {
