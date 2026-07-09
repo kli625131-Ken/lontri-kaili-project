@@ -342,7 +342,7 @@
                 </g>
               </g>
 
-              <g class="region-label-hit-layer">
+              <g class="region-label-hit-layer" :class="{ disabled: isConfigMode }">
                 <g
                   v-for="region in regions"
                   :key="`region-label-hit-${region.id}`"
@@ -574,6 +574,7 @@
               :draft-state="draftState"
               :validation-messages="validationMessages"
               :initial-tab="configDrawerTab"
+              :scene-modes="areaModes"
               @close="closeConfigDrawer"
               @update-region="handleUpdateRegionInfo"
               @create-area-group="handleCreateAreaGroup"
@@ -587,7 +588,11 @@
               @test-action="handleMockTestAction"
               @validate="handleValidateDraft"
             />
-            <aside v-else-if="activeDrawer" class="control-drawer" :class="`drawer-${activeDrawer.type}`">
+            <aside
+              v-else-if="activeDrawer"
+              class="control-drawer"
+              :class="[`drawer-${activeDrawer.type}`, { 'config-side-drawer': isConfigMode }]"
+            >
               <div class="drawer-head">
                 <div class="drawer-ident">
                   <div class="drawer-icon">{{ drawerIcon }}</div>
@@ -656,11 +661,11 @@
                     </div>
                     <div class="metric-grid">
                       <datalist id="brightness-percent-options">
-                        <option v-for="value in brightnessOptions" :key="value" :value="value"></option>
+                        <option v-for="value in brightnessOptions" :key="value" :value="`${value}%`"></option>
                       </datalist>
                       <div class="metric-card">
                         <span class="metric-label">开机亮度</span>
-                        <label class="metric-input-wrap">
+                        <label class="metric-input-wrap" :class="{ invalid: getDeviceFieldError(selectedCu, 'brightness') }">
                           <input
                             :value="selectedCu.brightness"
                             list="brightness-percent-options"
@@ -670,14 +675,17 @@
                             :readonly="!isConfigMode"
                             class="metric-input"
                             @input="handlePercentInput($event, selectedCu, 'brightness')"
-                            @change="selectedCu.brightness = clampPercent(selectedCu.brightness)"
+                            @blur="normalizePercentField(selectedCu, 'brightness')"
                           />
                           <span>%</span>
                         </label>
+                        <small v-if="getDeviceFieldError(selectedCu, 'brightness')" class="metric-error">
+                          {{ getDeviceFieldError(selectedCu, 'brightness') }}
+                        </small>
                       </div>
                       <div class="metric-card">
                         <span class="metric-label">背景亮度</span>
-                        <label class="metric-input-wrap">
+                        <label class="metric-input-wrap" :class="{ invalid: getDeviceFieldError(selectedCu, 'bgBrightness') }">
                           <input
                             :value="selectedCu.bgBrightness"
                             list="brightness-percent-options"
@@ -687,10 +695,13 @@
                             :readonly="!isConfigMode"
                             class="metric-input"
                             @input="handlePercentInput($event, selectedCu, 'bgBrightness')"
-                            @change="selectedCu.bgBrightness = clampPercent(selectedCu.bgBrightness)"
+                            @blur="normalizePercentField(selectedCu, 'bgBrightness')"
                           />
                           <span>%</span>
                         </label>
+                        <small v-if="getDeviceFieldError(selectedCu, 'bgBrightness')" class="metric-error">
+                          {{ getDeviceFieldError(selectedCu, 'bgBrightness') }}
+                        </small>
                       </div>
                     </div>
                   </section>
@@ -704,7 +715,7 @@
                       <label class="time-card">
                         <span class="time-title">进入背景亮度时间</span>
                         <span class="time-copy">无人感后，降低到“背景亮度”所需时间</span>
-                        <span class="time-input-wrap">
+                        <span class="time-input-wrap" :class="{ invalid: getDeviceFieldError(selectedCu, 'bgTime') }">
                           <input
                             :value="selectedCu.bgTime"
                             type="text"
@@ -713,14 +724,18 @@
                             :readonly="!isConfigMode"
                             class="time-input"
                             @input="handleDurationInput($event, selectedCu, 'bgTime')"
+                            @blur="validateDeviceDuration(selectedCu, 'bgTime')"
                           />
                           <span>秒</span>
                         </span>
+                        <small v-if="getDeviceFieldError(selectedCu, 'bgTime')" class="metric-error">
+                          {{ getDeviceFieldError(selectedCu, 'bgTime') }}
+                        </small>
                       </label>
                       <label class="time-card">
                         <span class="time-title">进入关灯时间</span>
                         <span class="time-copy">无人感后，彻底关闭灯所需时间</span>
-                        <span class="time-input-wrap">
+                        <span class="time-input-wrap" :class="{ invalid: getDeviceFieldError(selectedCu, 'offTime') }">
                           <input
                             :value="selectedCu.offTime"
                             type="text"
@@ -729,14 +744,18 @@
                             :readonly="!isConfigMode"
                             class="time-input"
                             @input="handleDurationInput($event, selectedCu, 'offTime')"
+                            @blur="validateDeviceDuration(selectedCu, 'offTime')"
                           />
                           <span>秒</span>
                         </span>
+                        <small v-if="getDeviceFieldError(selectedCu, 'offTime')" class="metric-error">
+                          {{ getDeviceFieldError(selectedCu, 'offTime') }}
+                        </small>
                       </label>
                       <label class="time-card">
                         <span class="time-title">手动模式持续时间</span>
                         <span class="time-copy">手动模式下无人感保持时长，到期恢复自动</span>
-                        <span class="time-input-wrap">
+                        <span class="time-input-wrap" :class="{ invalid: getDeviceFieldError(selectedCu, 'manualTime') }">
                           <input
                             :value="selectedCu.manualTime"
                             type="text"
@@ -745,9 +764,13 @@
                             :readonly="!isConfigMode"
                             class="time-input"
                             @input="handleDurationInput($event, selectedCu, 'manualTime')"
+                            @blur="validateDeviceDuration(selectedCu, 'manualTime')"
                           />
                           <span>秒</span>
                         </span>
+                        <small v-if="getDeviceFieldError(selectedCu, 'manualTime')" class="metric-error">
+                          {{ getDeviceFieldError(selectedCu, 'manualTime') }}
+                        </small>
                       </label>
                     </div>
                     <p class="section-desc dim">
@@ -778,40 +801,105 @@
                 </template>
 
                 <template v-else-if="selectedGw">
-                  <section class="drawer-section">
-                    <div class="section-head">
-                      <span>场景控制</span>
-                      <span class="section-tag">网关控制</span>
-                    </div>
-                    <div class="button-grid two">
-                      <button class="action-btn" :class="{ active: selectedGw.power }" @click="selectedGw.power = true">
-                        开启
+                  <template v-if="isConfigMode">
+                    <nav class="device-config-tabs" aria-label="网关配置">
+                      <button
+                        v-for="tab in gatewayConfigTabs"
+                        :key="tab.value"
+                        type="button"
+                        class="device-config-tab"
+                        :class="{ active: gatewayDrawerTab === tab.value }"
+                        @click="gatewayDrawerTab = tab.value"
+                      >
+                        {{ tab.label }}
                       </button>
-                      <button class="action-btn" :class="{ active: !selectedGw.power }" @click="selectedGw.power = false">
-                        关闭
-                      </button>
-                    </div>
-                    <p class="section-desc">
-                      云端网关控制模式：忽略无人感策略，按手动持续时间到期后恢复自动模式。
-                    </p>
-                  </section>
+                    </nav>
 
-                  <section class="drawer-section">
-                    <div class="section-head">
-                      <span>设备状态</span>
-                      <span class="section-tag">只读</span>
-                    </div>
-                    <div class="status-card">
-                      <div class="status-row">
-                        <span>固件版本</span>
-                        <strong>{{ selectedGw.firmware }}</strong>
+                    <section v-if="gatewayDrawerTab === 'scene'" class="drawer-section">
+                      <div class="section-head">
+                        <span>场景控制</span>
+                        <span class="section-tag">网关</span>
                       </div>
-                      <div class="status-row">
-                        <span>最新查询时间</span>
-                        <strong>{{ selectedGw.updatedAt }}</strong>
+                      <div class="button-grid two by-two">
+                        <button
+                          v-for="mode in areaModes"
+                          :key="`gw-scene-${mode.value}`"
+                          class="action-btn icon-btn"
+                          :class="{ active: selectedGw.sceneMode === mode.value }"
+                          @click="setGatewaySceneMode(mode.value)"
+                        >
+                          {{ mode.label }}
+                        </button>
                       </div>
-                    </div>
-                  </section>
+                      <p class="section-desc">
+                        网关场景控制用于统一切换该网关下设备的场景状态。
+                      </p>
+
+                      <div class="gateway-device-summary">
+                        <div class="gateway-device-head">
+                          <span>下属设备</span>
+                          <strong>{{ gatewayChildDevices.length }} 台</strong>
+                        </div>
+                        <div class="gateway-device-box">
+                          <div v-for="device in gatewayChildDevices" :key="device.id" class="gateway-device-row">
+                            <span>{{ device.shortName || device.id }}</span>
+                            <strong>{{ device.online === false ? '离线' : '在线' }}</strong>
+                          </div>
+                          <div v-if="!gatewayChildDevices.length" class="table-empty">当前网关下暂无设备</div>
+                        </div>
+                      </div>
+                    </section>
+
+                    <DeviceParameterConfigPanel
+                      v-if="gatewayDrawerTab === 'params'"
+                      :model="selectedGw"
+                      :brightness-options="brightnessOptions"
+                      :time-fields="deviceParamTimeFields"
+                      brightness-list-id="gateway-brightness-percent-options"
+                      :get-field-error="(key) => getDeviceFieldError(selectedGw, key)"
+                      :on-percent-change="(event, key) => handlePercentInput(event, selectedGw, key)"
+                      :on-percent-blur="(key) => normalizePercentField(selectedGw, key)"
+                      :on-duration-change="(event, key) => handleDurationInput(event, selectedGw, key)"
+                      :on-duration-blur="(key) => validateDeviceDuration(selectedGw, key)"
+                    />
+                  </template>
+
+                  <template v-else>
+                    <section class="drawer-section">
+                      <div class="section-head">
+                        <span>场景控制</span>
+                        <span class="section-tag">网关控制</span>
+                      </div>
+                      <div class="button-grid two">
+                        <button class="action-btn" :class="{ active: selectedGw.power }" @click="selectedGw.power = true">
+                          开启
+                        </button>
+                        <button class="action-btn" :class="{ active: !selectedGw.power }" @click="selectedGw.power = false">
+                          关闭
+                        </button>
+                      </div>
+                      <p class="section-desc">
+                        云端网关控制模式：忽略无人感策略，按手动持续时间到期后恢复自动模式。
+                      </p>
+                    </section>
+
+                    <section class="drawer-section">
+                      <div class="section-head">
+                        <span>设备状态</span>
+                        <span class="section-tag">只读</span>
+                      </div>
+                      <div class="status-card">
+                        <div class="status-row">
+                          <span>固件版本</span>
+                          <strong>{{ selectedGw.firmware }}</strong>
+                        </div>
+                        <div class="status-row">
+                          <span>最新查询时间</span>
+                          <strong>{{ selectedGw.updatedAt }}</strong>
+                        </div>
+                      </div>
+                    </section>
+                  </template>
                 </template>
 
                 <template v-else-if="selectedArea">
@@ -886,6 +974,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue'
 import DataCard from '../components/DataCard.vue'
+import DeviceParameterConfigPanel from '../components/deviceMap/DeviceParameterConfigPanel.vue'
 import MapConfigDrawer from '../components/deviceMap/MapConfigDrawer.vue'
 import MapEditToolbar from '../components/deviceMap/MapEditToolbar.vue'
 import MapModeSwitch from '../components/deviceMap/MapModeSwitch.vue'
@@ -952,6 +1041,8 @@ const configDrawerTargetType = ref('')
 const configDrawerTab = ref('base')
 const configDrawerOpenSeq = ref(0)
 const validationMessages = ref([])
+const deviceInputErrors = ref({})
+const gatewayDrawerTab = ref('scene')
 const drawingShape = ref(null)
 const editDragState = ref(null)
 const editingRegionId = ref('')
@@ -968,6 +1059,27 @@ const areaModes = [
   { label: '关闭', value: 'off' },
   { label: '会议模式', value: 'meeting' },
   { label: '讨论模式', value: 'discussion' }
+]
+const gatewayConfigTabs = [
+  { label: '场景控制', value: 'scene' },
+  { label: '参数配置', value: 'params' }
+]
+const deviceParamTimeFields = [
+  {
+    key: 'bgTime',
+    label: '进入背景亮度时间',
+    hint: '无人感后，降低到“背景亮度”所需时间'
+  },
+  {
+    key: 'offTime',
+    label: '进入关灯时间',
+    hint: '无人感后，彻底关闭灯所需时间'
+  },
+  {
+    key: 'manualTime',
+    label: '手动模式持续时间',
+    hint: '手动模式下无人感保持时长，到期恢复自动'
+  }
 ]
 
 const REGION_FOCUS_PADDING_RATIO = 0.1
@@ -1023,7 +1135,7 @@ const mapSvgClasses = computed(() => ({
   'is-zoomed': zoomLevel.value > 1.4,
   'is-high-zoom': zoomLevel.value >= REGION_GLOW_DISABLE_ZOOM,
   'is-middle-panning': isMiddlePanning.value,
-  'is-region-tool': isConfigMode.value && ['select', 'edit-region', 'delete-region'].includes(activeEditTool.value)
+  'is-region-tool': isConfigMode.value && ['draw-rect', 'draw-circle', 'draw-polygon', 'edit-region', 'delete-region'].includes(activeEditTool.value)
 }))
 
 const floorLayerClasses = computed(() => ({
@@ -1055,8 +1167,8 @@ const focusExitPath = computed(() => {
 })
 
 const drawerTitle = computed(() => {
-  if (selectedCu.value) return '控制面板-CU'
-  if (selectedGw.value) return '控制面板-网关'
+  if (selectedCu.value) return isConfigMode.value ? '设备配置-CU' : '控制面板-CU'
+  if (selectedGw.value) return isConfigMode.value ? '网关配置' : '控制面板-网关'
   if (selectedArea.value) return '控制面板-区域'
   return ''
 })
@@ -1078,6 +1190,22 @@ const drawerOnline = computed(() => activeDrawer.value?.entity?.online ?? false)
 const selectedAreaRows = computed(() => {
   if (!selectedArea.value) return []
   return selectedArea.value.sceneConfigs?.[selectedArea.value.sceneMode] ?? []
+})
+const gatewayChildDevices = computed(() => {
+  if (!selectedGw.value) return []
+  const keys = new Set([
+    selectedGw.value.id,
+    selectedGw.value.shortName,
+    selectedGw.value.name,
+    selectedGw.value.gatewayId,
+    selectedGw.value.regionId
+  ].filter(Boolean))
+  return cuDevices.value.filter((device) => (
+    keys.has(device.gatewayId) ||
+    keys.has(device.regionId) ||
+    keys.has(device.sourceFields?.GWNO) ||
+    keys.has(device.sourceFields?.GatewayId)
+  ))
 })
 
 const drawPreviewLine = computed(() => {
@@ -1321,9 +1449,9 @@ function normalizeDigitText(value) {
 function handlePercentInput(event, target, key) {
   if (!target || !key) return
   const value = normalizeDigitText(event.target.value)
-  const clampedValue = value === '' ? '' : clampPercent(value)
-  target[key] = clampedValue
-  event.target.value = clampedValue
+  target[key] = value
+  event.target.value = value
+  validateDevicePercent(target, key)
 }
 
 function handleDurationInput(event, target, key) {
@@ -1331,6 +1459,44 @@ function handleDurationInput(event, target, key) {
   const value = normalizeDigitText(event.target.value)
   target[key] = value === '' ? '' : Number(value)
   event.target.value = value
+  validateDeviceDuration(target, key)
+}
+
+function normalizePercentField(target, key) {
+  if (!validateDevicePercent(target, key)) return
+  target[key] = clampPercent(target[key])
+}
+
+function validateDevicePercent(target, key) {
+  const value = target?.[key]
+  const numericValue = Number(value)
+  const valid = value !== '' && Number.isInteger(numericValue) && numericValue >= 0 && numericValue <= 100
+  setDeviceFieldError(target, key, valid ? '' : '请输入 0-100 的整数')
+  return valid
+}
+
+function validateDeviceDuration(target, key) {
+  const value = target?.[key]
+  const valid = value !== '' && /^\d+$/.test(String(value))
+  setDeviceFieldError(target, key, valid ? '' : '请输入时间')
+  return valid
+}
+
+function getDeviceFieldError(target, key) {
+  if (!target?.id || !key) return ''
+  return deviceInputErrors.value[`${target.id}:${key}`] || ''
+}
+
+function setDeviceFieldError(target, key, message) {
+  if (!target?.id || !key) return
+  const errorKey = `${target.id}:${key}`
+  const nextErrors = { ...deviceInputErrors.value }
+  if (message) {
+    nextErrors[errorKey] = message
+  } else {
+    delete nextErrors[errorKey]
+  }
+  deviceInputErrors.value = nextErrors
 }
 
 function setAreaSceneMode(mode) {
@@ -1338,6 +1504,24 @@ function setAreaSceneMode(mode) {
   selectedArea.value.sceneMode = mode
   const label = areaModes.find((item) => item.value === mode)?.label || '场景'
   commitDrawerMessage(`已切换到${label}`)
+}
+
+function setGatewaySceneMode(mode) {
+  if (!selectedGw.value) return
+  selectedGw.value.sceneMode = mode
+  const label = areaModes.find((item) => item.value === mode)?.label || '场景'
+  commitDrawerMessage(`已切换网关${label}`)
+}
+
+function ensureDeviceParamFields(device) {
+  if (!device) return
+  if (!device.mode) device.mode = 'auto'
+  if (device.sceneMode == null) device.sceneMode = 'on'
+  if (device.brightness == null || device.brightness === '') device.brightness = device.type === 'gw' ? 100 : 100
+  if (device.bgBrightness == null || device.bgBrightness === '') device.bgBrightness = device.type === 'gw' ? 40 : 40
+  if (device.bgTime == null || device.bgTime === '') device.bgTime = 900
+  if (device.offTime == null || device.offTime === '') device.offTime = 1200
+  if (device.manualTime == null || device.manualTime === '') device.manualTime = 1250
 }
 
 function resetMapInteractionState() {
@@ -2137,7 +2321,6 @@ async function handleConfigRegionClick(region) {
     activeDrawer.value = null
     focusedRegionId.value = ''
     editingRegionId.value = region.id
-    openConfigDrawer(region, 'area', 'base')
     commitDrawerMessage(`正在编辑 ${region.name || region.id}`)
     return
   }
@@ -2208,6 +2391,7 @@ function handleMapBlankClick(event) {
   ) {
     closeConfigToolbarPanel()
 
+    closeConfigDrawer()
     clearActiveDevice()
     if (focusedRegionId.value) resetView()
   }
@@ -3025,6 +3209,7 @@ function syncAreaGroupsWithRegions(regionList) {
 }
 
 function openConfigDrawer(target, targetType = 'area', tab = 'base') {
+  closeDrawer()
   configDrawerTarget.value = target
   configDrawerTargetType.value = targetType
   configDrawerTab.value = tab || 'base'
@@ -3098,7 +3283,7 @@ function handleSaveAreaGroup(payload) {
   if (!validation.ok) {
     validationMessages.value = [validation.message]
     configDrawerTab.value = 'validate'
-    commitDrawerMessage('配置未完成')
+    commitDrawerMessage('校验失败')
     return
   }
   draftState.value = upsertAreaGroup(draftState.value, {
@@ -3205,7 +3390,7 @@ function markDraftAction(message) {
 function handleValidateDraft() {
   validationMessages.value = validateDraftState(draftState.value, cuDevices.value)
   configDrawerTab.value = 'validate'
-  commitDrawerMessage(validationMessages.value.length ? '配置未完成' : '校验通过')
+  commitDrawerMessage(validationMessages.value.length ? '校验失败' : '校验通过')
 }
 
 function handleMockTestAction(action) {
@@ -3226,7 +3411,7 @@ function handleSaveLocalDraft() {
     }
     commitDrawerMessage('已保存草稿')
   } else {
-    commitDrawerMessage('保存草稿失败')
+    commitDrawerMessage('校验失败')
   }
 }
 
@@ -3247,10 +3432,12 @@ function openDrawer(type, entity) {
       return
     }
     if (activeEditTool.value !== 'move-device') {
+      ensureDeviceParamFields(entity)
+      if (type === 'gw') gatewayDrawerTab.value = 'scene'
       closeConfigDrawer()
       focusedRegionId.value = ''
       activeDrawer.value = { type, entity }
-      commitDrawerMessage(`已打开 ${entity.shortName || entity.id} 控制面板`)
+      commitDrawerMessage(`已打开 ${entity.shortName || entity.id} 配置`)
     }
     return
   }
@@ -3259,9 +3446,13 @@ function openDrawer(type, entity) {
       closeDrawer()
       return
     }
+    ensureDeviceParamFields(entity)
+    if (type === 'gw') gatewayDrawerTab.value = 'scene'
+    closeConfigDrawer()
     activeDrawer.value = { type, entity }
     return
   }
+  closeConfigDrawer()
   activeDrawer.value = { type, entity }
 }
 
@@ -3990,6 +4181,10 @@ function clamp(value, min, max) {
   pointer-events: none;
 }
 
+.region-label-hit-layer.disabled {
+  display: none;
+}
+
 .region-label-hit-node {
   cursor: pointer;
   pointer-events: all;
@@ -4507,6 +4702,144 @@ function clamp(value, min, max) {
   will-change: transform, opacity;
 }
 
+.control-drawer.config-side-drawer {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: auto;
+  width: clamp(360px, 28vw, 420px);
+  max-height: none;
+  border: 0;
+  border-left: 1px solid rgba(89, 227, 255, 0.36);
+  border-radius: 0;
+  background:
+    linear-gradient(180deg, rgba(7, 20, 38, 0.98), rgba(4, 12, 24, 0.98)),
+    radial-gradient(circle at top right, rgba(89, 227, 255, 0.1), transparent 42%);
+  box-shadow: -12px 0 30px rgba(0, 0, 0, 0.26);
+  transform: none;
+}
+
+.control-drawer.config-side-drawer .drawer-head {
+  min-height: 58px;
+  padding: 10px 14px;
+  border-bottom-color: rgba(89, 227, 255, 0.18);
+}
+
+.control-drawer.config-side-drawer .drawer-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+}
+
+.control-drawer.config-side-drawer .drawer-title {
+  margin-bottom: 3px;
+  font-size: 15px;
+}
+
+.control-drawer.config-side-drawer .drawer-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+}
+
+.control-drawer.config-side-drawer .online-badge {
+  padding: 6px 10px;
+}
+
+.control-drawer.config-side-drawer .drawer-body {
+  padding: 14px;
+}
+
+.control-drawer.config-side-drawer .drawer-section {
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  border-color: rgba(89, 227, 255, 0.18);
+  background: rgba(6, 17, 31, 0.52);
+}
+
+.device-config-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 38px;
+  margin: -14px -14px 12px;
+  padding: 0 10px;
+  border-bottom: 1px solid rgba(89, 227, 255, 0.16);
+  background: rgba(5, 16, 30, 0.72);
+}
+
+.device-config-tab {
+  position: relative;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(220, 235, 246, 0.68);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.device-config-tab.active {
+  color: #55f2df;
+  background: rgba(53, 246, 212, 0.06);
+}
+
+.device-config-tab.active::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 2px;
+  background: #55f2df;
+}
+
+.gateway-device-summary {
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(89, 227, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(6, 17, 31, 0.52);
+}
+
+.gateway-device-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  color: rgba(234, 243, 252, 0.86);
+  font-size: 12px;
+  border-bottom: 1px solid rgba(89, 227, 255, 0.12);
+}
+
+.gateway-device-box {
+  max-height: 176px;
+  overflow: auto;
+  background: rgba(4, 14, 28, 0.54);
+}
+
+.gateway-device-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px;
+  gap: 10px;
+  padding: 9px 12px;
+  color: rgba(234, 243, 252, 0.72);
+  font-size: 12px;
+}
+
+.gateway-device-row + .gateway-device-row {
+  border-top: 1px solid rgba(89, 227, 255, 0.08);
+}
+
+.gateway-device-row strong {
+  color: #55f2df;
+  font-weight: 600;
+  text-align: right;
+}
+
 .drawer-head {
   display: flex;
   justify-content: space-between;
@@ -4711,6 +5044,11 @@ function clamp(value, min, max) {
   font-family: var(--font-num);
 }
 
+.metric-input-wrap.invalid,
+.time-input-wrap.invalid {
+  border-color: rgba(255, 111, 118, 0.78);
+}
+
 .metric-input {
   width: 100%;
   min-width: 0;
@@ -4721,6 +5059,14 @@ function clamp(value, min, max) {
   font-size: 22px;
   font-family: var(--font-num);
   text-align: right;
+}
+
+.metric-error {
+  display: block;
+  margin-top: 8px;
+  color: #ff8d88;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .metric-input:read-only,
@@ -4788,7 +5134,7 @@ function clamp(value, min, max) {
   background: transparent;
   color: var(--accent-teal);
   font-family: var(--font-num);
-  text-align: right;
+  text-align: left;
 }
 
 .status-card {

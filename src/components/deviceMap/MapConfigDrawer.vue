@@ -23,6 +23,18 @@
 
     <div class="drawer-body">
       <section v-if="activeTab === 'base'" class="drawer-section">
+        <div class="button-grid two by-two">
+          <button
+            v-for="mode in sceneModes"
+            :key="mode.value"
+            type="button"
+            class="action-btn icon-btn"
+            @click="$emit('test-action', { type: 'area-scene', mode: mode.value, region: target })"
+          >
+            {{ mode.label }}
+          </button>
+        </div>
+
         <div class="form-grid">
           <label class="field-row">
             <span>区域名称</span>
@@ -95,10 +107,24 @@
       </section>
 
       <section v-if="activeTab === 'scene'" class="drawer-section">
+        <div class="existing-scenes">
+          <div class="scene-list-head">
+            <span>已有场景</span>
+            <strong>{{ regionScenes.length }}</strong>
+          </div>
+          <div v-if="regionScenes.length" class="scene-list">
+            <div v-for="scene in regionScenes" :key="scene.id" class="scene-row">
+              <span>{{ scene.name || scene.defaultScene || scene.mode || scene.id }}</span>
+              <strong>{{ scene.brightness ?? '--' }}%</strong>
+            </div>
+          </div>
+          <div v-else class="summary-empty">当前区域暂无场景信息</div>
+        </div>
+
         <div class="form-grid">
           <label class="field-row">
             <span>默认场景</span>
-            <select v-model="sceneForm.defaultScene" class="text-input">
+            <select v-model="sceneForm.defaultScene" class="text-input select-input">
               <option value="on">区域开</option>
               <option value="off">区域关</option>
               <option value="saving">节能</option>
@@ -110,13 +136,28 @@
           </label>
           <label class="field-row">
             <span>亮度</span>
-            <input v-model.trim="sceneForm.brightness" class="text-input" inputmode="numeric" @input="sceneForm.brightness = digitsOnly(sceneForm.brightness).slice(0, 3)" />
+            <span class="unit-input-wrap" :class="{ invalid: errors.sceneBrightness }">
+              <input
+                :value="sceneForm.brightness"
+                list="drawer-brightness-options"
+                type="text"
+                inputmode="numeric"
+                class="unit-input"
+                @input="handleSceneBrightnessInput"
+                @blur="validateSceneBrightness"
+              />
+              <span>%</span>
+            </span>
+            <small v-if="errors.sceneBrightness" class="field-error">{{ errors.sceneBrightness }}</small>
           </label>
           <label class="field-row">
             <span>色温</span>
             <input v-model.trim="sceneForm.colorTemperature" class="text-input" inputmode="numeric" @input="sceneForm.colorTemperature = digitsOnly(sceneForm.colorTemperature).slice(0, 4)" />
           </label>
         </div>
+        <datalist id="drawer-brightness-options">
+          <option v-for="value in brightnessOptions" :key="`scene-${value}`" :value="`${value}%`"></option>
+        </datalist>
         <div class="button-row">
           <button class="action-btn" type="button" @click="$emit('create-default-scenes', target)">默认场景</button>
           <button class="action-btn" type="button" @click="$emit('create-custom-scene', target)">自定义场景</button>
@@ -124,85 +165,18 @@
         </div>
       </section>
 
-      <section v-if="activeTab === 'params'" class="drawer-section">
-        <div class="form-grid">
-          <label class="field-row">
-            <span>参数模板</span>
-            <select v-model="paramForm.templateId" class="text-input">
-              <option v-for="template in paramTemplates" :key="template.id" :value="template.id">{{ template.name }}</option>
-              <option value="custom">自定义</option>
-            </select>
-          </label>
-          <label class="field-row">
-            <span>控制模式</span>
-            <select v-model="paramForm.mode" class="text-input">
-              <option value="manual">手动</option>
-              <option value="auto">自动感应</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="metric-grid">
-          <label class="field-row">
-            <span>亮度范围</span>
-            <span class="unit-input-wrap" :class="{ invalid: errors.brightness }">
-              <input
-                :value="paramForm.brightness"
-                list="drawer-brightness-options"
-                type="text"
-                inputmode="numeric"
-                class="unit-input"
-                @input="handlePercentInput($event, 'brightness')"
-                @blur="formatPercent('brightness')"
-              />
-              <span>%</span>
-            </span>
-            <small v-if="errors.brightness" class="field-error">{{ errors.brightness }}</small>
-          </label>
-          <label class="field-row">
-            <span>背景亮度</span>
-            <span class="unit-input-wrap" :class="{ invalid: errors.bgBrightness }">
-              <input
-                :value="paramForm.bgBrightness"
-                list="drawer-brightness-options"
-                type="text"
-                inputmode="numeric"
-                class="unit-input"
-                @input="handlePercentInput($event, 'bgBrightness')"
-                @blur="formatPercent('bgBrightness')"
-              />
-              <span>%</span>
-            </span>
-            <small v-if="errors.bgBrightness" class="field-error">{{ errors.bgBrightness }}</small>
-          </label>
-        </div>
-        <datalist id="drawer-brightness-options">
-          <option v-for="value in brightnessOptions" :key="value" :value="value"></option>
-        </datalist>
-
-        <div class="time-grid">
-          <label v-for="item in timeFields" :key="item.key" class="field-row">
-            <span>{{ item.label }}</span>
-            <span class="unit-input-wrap" :class="{ invalid: errors[item.key] }">
-              <input
-                :value="paramForm[item.key]"
-                type="text"
-                inputmode="numeric"
-                class="unit-input"
-                @input="handleDurationInput($event, item.key)"
-                @blur="validateDuration(item.key)"
-              />
-              <span>秒</span>
-            </span>
-            <small v-if="errors[item.key]" class="field-error">{{ errors[item.key] }}</small>
-          </label>
-        </div>
-
-        <div class="button-row">
-          <button class="action-btn" type="button" @click="$emit('use-param-template', target)">使用模板</button>
-          <button class="action-btn primary" type="button" @click="saveCuParams">保存参数</button>
-        </div>
-      </section>
+      <DeviceParameterConfigPanel
+        v-if="activeTab === 'params'"
+        :model="paramForm"
+        :brightness-options="brightnessOptions"
+        :time-fields="timeFields"
+        brightness-list-id="drawer-brightness-options"
+        :get-field-error="getParamFieldError"
+        :on-percent-change="handlePercentInput"
+        :on-percent-blur="formatPercent"
+        :on-duration-change="handleDurationInput"
+        :on-duration-blur="validateDuration"
+      />
 
       <section v-if="activeTab === 'validate'" class="drawer-section">
         <div class="test-grid">
@@ -213,7 +187,7 @@
           <button class="action-btn primary" type="button" @click="$emit('validate')">校验配置</button>
         </div>
         <div class="validation-box" :class="{ ok: !validationMessages.length }">
-          <p v-if="validationMessages.length" v-for="message in validationMessages" :key="message">{{ message }}</p>
+          <p v-if="validationMessages.length">校验失败</p>
           <p v-else>校验通过</p>
         </div>
       </section>
@@ -223,6 +197,7 @@
 
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
+import DeviceParameterConfigPanel from './DeviceParameterConfigPanel.vue'
 
 const props = defineProps({
   target: {
@@ -248,6 +223,15 @@ const props = defineProps({
   initialTab: {
     type: String,
     default: 'base'
+  },
+  sceneModes: {
+    type: Array,
+    default: () => [
+      { label: '开启', value: 'on' },
+      { label: '关闭', value: 'off' },
+      { label: '会议模式', value: 'meeting' },
+      { label: '讨论模式', value: 'discussion' }
+    ]
   }
 })
 
@@ -270,16 +254,16 @@ const tabs = [
   { label: '基础信息', value: 'base' },
   { label: '区域组', value: 'areaGroup' },
   { label: '场景', value: 'scene' },
-  { label: 'CU参数', value: 'params' },
+  { label: '参数配置', value: 'params' },
   { label: '测试', value: 'validate' }
 ]
 const tabValues = new Set(tabs.map((tab) => tab.value))
 const activeTab = ref(normalizeTab(props.initialTab))
 const brightnessOptions = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 const timeFields = [
-  { key: 'bgTime', label: '进入背景亮度时间' },
-  { key: 'offTime', label: '进入关灯时间' },
-  { key: 'manualTime', label: '手动模式持续时间' }
+  { key: 'bgTime', label: '进入背景亮度时间', hint: '无人感后，降低到“背景亮度”所需时间' },
+  { key: 'offTime', label: '进入关灯时间', hint: '无人感后，彻底关闭灯所需时间' },
+  { key: 'manualTime', label: '手动模式持续时间', hint: '手动模式下无人感保持时长，到期恢复自动' }
 ]
 
 const baseForm = reactive({ name: '', code: '' })
@@ -297,7 +281,7 @@ const paramForm = reactive({
 const errors = reactive({})
 
 const drawerTitle = computed(() => {
-  if (activeTab.value === 'params') return 'CU参数'
+  if (activeTab.value === 'params') return '参数配置'
   return props.targetType === 'area' ? '区域配置' : '配置调试'
 })
 const targetName = computed(() => props.target?.name || props.target?.shortName || props.target?.id || '未选择对象')
@@ -317,11 +301,15 @@ const areaGroup = computed(() => props.draftState.areaGroups?.find((group) => gr
 const configStatusText = computed(() => {
   if (props.draftState.dirty) return '待保存'
   if (areaGroup.value || regionParamConfig.value) return '已保存草稿'
-  return '配置未完成'
+  return '待保存'
 })
 const regionParamConfig = computed(() => {
   const configs = props.draftState.cuParamConfigs || []
   return configs.find((item) => item.regionId === props.target?.id) || null
+})
+const regionScenes = computed(() => {
+  const scenes = props.draftState.scenes || []
+  return scenes.filter((scene) => scene.regionId === props.target?.id)
 })
 const paramTemplates = computed(() => props.draftState.cuParamTemplates || [])
 
@@ -408,6 +396,27 @@ function validatePercent(key) {
     return false
   }
   errors[key] = ''
+  return true
+}
+
+function getParamFieldError(key) {
+  return errors[key] || ''
+}
+
+function handleSceneBrightnessInput(event) {
+  const value = digitsOnly(event.target.value).slice(0, 3)
+  sceneForm.brightness = value
+  event.target.value = value
+  validateSceneBrightness()
+}
+
+function validateSceneBrightness() {
+  const numericValue = Number(sceneForm.brightness)
+  if (sceneForm.brightness === '' || !Number.isInteger(numericValue) || numericValue < 0 || numericValue > 100) {
+    errors.sceneBrightness = '请输入 0-100 的整数'
+    return false
+  }
+  errors.sceneBrightness = ''
   return true
 }
 
@@ -498,22 +507,28 @@ function digitsOnly(value) {
 .config-tabs {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  height: 40px;
+  min-height: 38px;
+  padding: 0 10px;
   border-bottom: 1px solid rgba(89, 227, 255, 0.16);
   background: rgba(5, 16, 30, 0.72);
 }
 
 .config-tab {
   position: relative;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 6px;
   border: 0;
+  border-radius: 0;
   background: transparent;
   color: rgba(220, 235, 246, 0.68);
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .config-tab.active {
   color: #55f2df;
-  background: rgba(53, 246, 212, 0.08);
+  background: rgba(53, 246, 212, 0.06);
 }
 
 .config-tab.active::after {
@@ -538,6 +553,73 @@ function digitsOnly(value) {
 .time-grid {
   display: grid;
   gap: 12px;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: rgba(234, 243, 252, 0.9);
+  font-size: 14px;
+}
+
+.section-tag {
+  padding: 4px 10px;
+  border: 1px solid rgba(89, 227, 255, 0.2);
+  border-radius: 999px;
+  color: rgba(234, 243, 252, 0.76);
+  background: rgba(89, 227, 255, 0.08);
+  font-size: 11px;
+}
+
+.button-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.button-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.button-grid.by-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.existing-scenes {
+  overflow: hidden;
+  border: 1px solid rgba(89, 227, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(6, 17, 31, 0.52);
+}
+
+.scene-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  color: rgba(234, 243, 252, 0.86);
+  font-size: 12px;
+  border-bottom: 1px solid rgba(89, 227, 255, 0.12);
+}
+
+.scene-list {
+  max-height: 132px;
+  overflow: auto;
+}
+
+.scene-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px;
+  gap: 10px;
+  padding: 8px 12px;
+  color: rgba(234, 243, 252, 0.72);
+  font-size: 12px;
+}
+
+.scene-row + .scene-row {
+  border-top: 1px solid rgba(89, 227, 255, 0.08);
 }
 
 .form-grid,
@@ -571,6 +653,19 @@ function digitsOnly(value) {
   background: rgba(3, 12, 24, 0.74);
 }
 
+.select-input {
+  padding-right: 28px;
+  appearance: none;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath d='M4 5.5 7 8.5 10 5.5' fill='none' stroke='%23dcefff' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") right 10px center / 14px 14px no-repeat,
+    rgba(3, 12, 24, 0.74);
+}
+
+.select-input option {
+  background: #071526;
+  color: #f3f9ff;
+}
+
 .text-input.readonly,
 .text-input:read-only {
   color: rgba(234, 243, 252, 0.64);
@@ -595,12 +690,106 @@ function digitsOnly(value) {
 
 .unit-input {
   height: 32px;
-  text-align: right;
+  text-align: left;
 }
 
 .field-error {
   color: #ff8d88;
   font-size: 11px;
+}
+
+.metric-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px 12px 12px;
+  border: 1px solid rgba(89, 227, 255, 0.26);
+  border-radius: 12px;
+  background: rgba(6, 17, 31, 0.7);
+}
+
+.metric-label {
+  display: block;
+  margin-bottom: 2px;
+  color: rgba(234, 243, 252, 0.72);
+  font-size: 12px;
+}
+
+.metric-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(89, 227, 255, 0.22);
+  background: rgba(4, 14, 28, 0.74);
+  color: #55f2df;
+  font-family: var(--font-num);
+}
+
+.metric-input-wrap.invalid,
+.time-input-wrap.invalid {
+  border-color: rgba(255, 111, 118, 0.78);
+}
+
+.metric-input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #55f2df;
+  font-size: 22px;
+  font-family: var(--font-num);
+  text-align: left;
+}
+
+.time-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.time-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(89, 227, 255, 0.18);
+  border-radius: 12px;
+  background: rgba(6, 17, 31, 0.72);
+}
+
+.time-title {
+  color: #f3f9ff;
+  font-size: 14px;
+}
+
+.time-copy {
+  color: rgba(211, 225, 239, 0.58);
+  font-size: 12px;
+}
+
+.time-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(89, 227, 255, 0.22);
+  background: rgba(4, 14, 28, 0.74);
+  color: #55f2df;
+  font-family: var(--font-num);
+}
+
+.time-input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #55f2df;
+  font-family: var(--font-num);
+  text-align: left;
 }
 
 .device-summary {
