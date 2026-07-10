@@ -33,6 +33,8 @@ export function createMockConfigState(floorId = '') {
     floorId,
     areaGroups: [],
     scenes: [],
+    panelBindings: [],
+    subscriptions: [],
     cuParamTemplates: structuredClone(CU_PARAM_TEMPLATES),
     cuParamConfigs: [],
     operationLogs: [],

@@ -31,14 +31,13 @@ defineProps({
   padding: 16px 20px 18px;
   border-radius: var(--radius-md);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.02) 24%, transparent 50%),
-    linear-gradient(135deg, rgba(255, 203, 114, 0.12), transparent 24%),
-    linear-gradient(180deg, rgba(39, 63, 90, 0.92), rgba(24, 43, 65, 0.86));
-  border: 1px solid rgba(180, 214, 235, 0.28);
+    linear-gradient(180deg, rgba(85, 216, 255, 0.08), transparent 30%),
+    linear-gradient(180deg, var(--card-bg-strong), var(--card-bg));
+  border: 1px solid var(--border-default);
   box-shadow:
     var(--shadow-panel),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 0 0 0 1px rgba(120, 232, 255, 0.04);
+    inset 0 1px 0 var(--inner-highlight),
+    inset 0 0 0 1px rgba(85, 216, 255, 0.04);
 }
 
 .kpi-card::before {
@@ -47,7 +46,7 @@ defineProps({
   inset: 0 auto auto 0;
   width: 84px;
   height: 2px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.86), var(--accent-cyan), transparent);
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue), transparent);
 }
 
 .kpi-card::after {
@@ -58,7 +57,7 @@ defineProps({
   width: 132px;
   height: 132px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(220, 236, 252, 0.18), transparent 68%);
+  background: radial-gradient(circle, rgba(85, 216, 255, 0.10), transparent 68%);
   pointer-events: none;
 }
 
@@ -92,7 +91,7 @@ defineProps({
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: rgba(234, 243, 252, 0.88);
+  color: var(--text-secondary);
   text-shadow: 0 1px 8px rgba(255, 255, 255, 0.04);
 }
 </style>

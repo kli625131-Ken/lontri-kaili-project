@@ -36,8 +36,8 @@ defineEmits(['change'])
   align-items: center;
   padding: 3px;
   border-radius: 999px;
-  border: 1px solid rgba(89, 227, 255, 0.22);
-  background: rgba(6, 17, 31, 0.72);
+  border: 1px solid var(--border-default);
+  background: var(--control-bg);
 }
 
 .mode-btn {
@@ -47,13 +47,13 @@ defineEmits(['change'])
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: rgba(234, 243, 252, 0.72);
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
 .mode-btn.active {
-  color: #06111f;
-  background: linear-gradient(90deg, #7ef3ff, #9ff5cc);
-  box-shadow: 0 0 16px rgba(89, 227, 255, 0.22);
+  color: var(--bg-page-deep);
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+  box-shadow: 0 0 16px rgba(85, 216, 255, 0.16);
 }
 </style>

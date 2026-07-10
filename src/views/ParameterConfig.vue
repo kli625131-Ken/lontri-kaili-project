@@ -940,6 +940,18 @@ const resetAreaConfig = () => {
   min-width: 0;
 }
 
+/* System theme alignment; layout and interaction remain unchanged. */
+.area-item, .template-item, .switch-card, .scene-tab { background: var(--control-bg); border-color: var(--border-subtle); color: var(--text-primary); }
+.area-item.active, .template-item.active, .scene-tab.active, .switch-card.active { border-color: var(--border-active); background: linear-gradient(180deg, var(--info-soft), var(--control-bg)); box-shadow: 0 0 0 1px rgba(85, 216, 255, 0.08), var(--glow-soft); }
+.area-name, .template-name, .section-title, .scene-editor-title, .history-title, .field label, .summary-kpi strong, .summary-line strong { color: var(--text-strong); }
+.area-meta, .template-desc, .section-desc, .switch-hint, .scene-editor-desc, .field p, .guard-desc, .history-meta, .summary-label, .summary-line span, .guard-title { color: var(--text-secondary); }
+.tag, .template-badge, .header-chip { border-color: var(--border-subtle); background: var(--info-soft); color: var(--accent-cyan); }
+.section-block, .field, .scene-editor, .summary-kpi, .summary-line, .guard-item, .history-item { border-color: var(--border-subtle); background: rgba(7, 24, 42, 0.72); }
+.ghost-btn, .secondary-btn { border-color: var(--border-default); background: var(--control-bg); color: var(--text-secondary); }
+.ghost-btn.active { border-color: var(--border-active); color: var(--accent-cyan); }
+.primary-btn { color: var(--bg-page-deep); background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan)); }
+.history-dot { background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan)); box-shadow: 0 0 12px rgba(85, 216, 255, 0.22); }
+
 @media (max-width: 1440px) {
   .config-layout {
     grid-template-columns: 260px minmax(0, 1fr) 320px;

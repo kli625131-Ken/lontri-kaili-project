@@ -227,4 +227,51 @@ const savePermissions = () => { alert('权限配置已保存！') }
 .btn-cancel:hover { background: rgba(255, 255, 255, 0.1); }
 .btn-confirm { padding: 10px 24px; background: linear-gradient(90deg, #00d4aa, #00a884); border: none; border-radius: 6px; color: #fff; font-size: 14px; cursor: pointer; transition: all 0.3s ease; }
 .btn-confirm:hover { box-shadow: 0 4px 20px rgba(0, 212, 170, 0.4); }
+
+/* Unified deep-sea theme: color-only overrides. */
+.add-btn { background: var(--info-soft); border-color: var(--border-active); color: var(--accent-cyan); }
+.add-btn:hover { background: rgba(85, 216, 255, 0.18); }
+.group-item { background: rgba(7, 24, 42, 0.58); border-color: var(--border-subtle); }
+.group-item:hover { background: var(--control-bg-hover); border-color: var(--border-default); }
+.group-item.active { background: rgba(77, 159, 255, 0.16); border-color: var(--border-active); }
+.group-name { color: var(--text-strong); }
+.group-desc { color: var(--text-tertiary); }
+.user-count { color: var(--text-tertiary); }
+.perm-badge.admin { background: var(--danger-soft); color: var(--danger); }
+.perm-badge.operator { background: var(--info-soft); color: var(--accent-blue); }
+.perm-badge.viewer { background: var(--success-soft); color: var(--success); }
+.search-input { background: var(--control-bg); border-color: var(--border-default); color: var(--text-secondary); }
+.user-table { border-color: var(--border-subtle); background: rgba(7, 24, 42, 0.34); }
+.table-header { background: rgba(77, 159, 255, 0.11); }
+.th { color: var(--text-strong); }
+.table-row { border-bottom-color: rgba(105, 176, 235, 0.11); }
+.table-row:hover { background: rgba(85, 216, 255, 0.055); }
+.td, .perm-label { color: var(--text-secondary); }
+.user-avatar-small { background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan)); color: var(--bg-page-deep); }
+.status-dot.active { background: var(--success); }
+.status-dot.disabled { background: var(--offline); }
+.action-btn { background: var(--info-soft); border-color: var(--info-border); color: var(--accent-cyan); }
+.action-btn:hover { background: rgba(85, 216, 255, 0.18); }
+.action-btn.danger { background: var(--danger-soft); border-color: var(--danger-border); color: var(--danger); }
+.action-btn.danger:hover { background: rgba(255, 102, 120, 0.20); }
+.pagination, .perm-title { border-color: var(--border-subtle); }
+.page-info, .page-num { color: var(--text-tertiary); }
+.page-btn, .btn-cancel { background: var(--control-bg); border-color: var(--border-subtle); color: var(--text-secondary); }
+.page-btn:hover:not(:disabled) { border-color: var(--border-active); color: var(--accent-cyan); }
+.perm-title { color: var(--text-strong); }
+.checkmark { border-color: var(--border-default); }
+.perm-item input:checked + .checkmark { background: var(--accent-cyan); border-color: var(--accent-cyan); }
+.perm-item input:checked + .checkmark::after { color: var(--bg-page-deep); }
+.save-perm-btn, .btn-confirm { background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan)); color: var(--bg-page-deep); }
+.save-perm-btn:hover, .btn-confirm:hover { box-shadow: 0 4px 20px rgba(85, 216, 255, 0.20); }
+.empty-state { color: var(--text-muted); }
+.modal-overlay { background: var(--overlay-bg); }
+.modal { background: linear-gradient(145deg, var(--card-bg-strong), var(--bg-page)); border-color: var(--border-default); box-shadow: var(--shadow-elevated); }
+.modal-header, .modal-footer { border-color: var(--border-subtle); }
+.modal-header h3 { color: var(--text-primary); }
+.close-btn { color: var(--text-tertiary); }
+.close-btn:hover { color: var(--text-primary); }
+.form-item label { color: var(--text-secondary); }
+.form-item input, .form-item textarea, .form-item select { background: var(--control-bg); border-color: var(--border-default); color: var(--text-primary); }
+.form-item input:focus, .form-item textarea:focus, .form-item select:focus { border-color: var(--border-active); }
 </style>

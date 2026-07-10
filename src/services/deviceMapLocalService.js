@@ -15,6 +15,8 @@ export function createInitialDraftState(floorId = '') {
     devices: [],
     areaGroups: [],
     scenes: mockState.scenes,
+    panelBindings: mockState.panelBindings,
+    subscriptions: mockState.subscriptions,
     cuParamTemplates: mockState.cuParamTemplates,
     cuParamConfigs: mockState.cuParamConfigs,
     operationLogs: mockState.operationLogs,
@@ -43,6 +45,8 @@ export function createDraftFromOverlay(floorId, regions = [], devices = []) {
       }
     }),
     scenes: createMockScenes(regions),
+    panelBindings: [],
+    subscriptions: [],
     cuParamConfigs: createMockCuParamConfigs(regions)
   }
 }
@@ -95,6 +99,8 @@ export function loadMapState(projectId, floorId, baseState = {}) {
     gwDevices: overlay.gwDevices,
     areaGroups: draft.areaGroups,
     scenes: draft.scenes,
+    panelBindings: draft.panelBindings,
+    subscriptions: draft.subscriptions,
     cuParamTemplates: draft.cuParamTemplates,
     cuParamConfigs: draft.cuParamConfigs,
     operationLogs: draft.operationLogs,
@@ -147,7 +153,7 @@ export function mockControl(action) {
   return {
     ok: true,
     action,
-    message: '前端模拟控制已完成',
+    message: '验证通过',
     at: new Date().toISOString()
   }
 }

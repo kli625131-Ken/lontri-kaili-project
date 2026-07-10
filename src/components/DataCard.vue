@@ -28,15 +28,13 @@ defineProps({
   overflow: hidden;
   border-radius: var(--radius-md);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.02) 22%, transparent 54%),
-    linear-gradient(135deg, rgba(255, 203, 114, 0.08), transparent 28%),
-    linear-gradient(180deg, rgba(34, 56, 82, 0.9), rgba(19, 37, 57, 0.84));
-  border: 1px solid rgba(175, 210, 230, 0.24);
+    linear-gradient(180deg, var(--inner-highlight), transparent 24%),
+    linear-gradient(180deg, rgba(13, 39, 67, 0.96), var(--card-bg));
+  border: 1px solid var(--border-subtle);
   box-shadow:
     var(--shadow-panel),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 0 0 0 1px rgba(120, 232, 255, 0.04),
-    0 12px 32px rgba(0, 0, 0, 0.08);
+    inset 0 1px 0 var(--inner-highlight),
+    inset 0 0 0 1px rgba(85, 216, 255, 0.025);
   backdrop-filter: blur(14px);
 }
 
@@ -45,8 +43,8 @@ defineProps({
   position: absolute;
   inset: 0 0 auto 0;
   height: 2px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(214, 232, 247, 0.82) 18%, rgba(88, 239, 219, 0.44) 54%, rgba(255, 203, 114, 0.36) 78%, rgba(255, 255, 255, 0));
-  opacity: 0.95;
+  background: linear-gradient(90deg, transparent, rgba(85, 216, 255, 0.48), rgba(77, 159, 255, 0.18), transparent);
+  opacity: 0.72;
 }
 
 .data-card::after {
@@ -56,7 +54,7 @@ defineProps({
   right: 0;
   width: 136px;
   height: 136px;
-  background: radial-gradient(circle at top right, rgba(220, 236, 252, 0.2), transparent 64%);
+  background: radial-gradient(circle at top right, rgba(85, 216, 255, 0.08), transparent 66%);
   pointer-events: none;
 }
 
@@ -66,9 +64,9 @@ defineProps({
   align-items: center;
   gap: 10px;
   padding: 14px 16px 12px;
-  border-bottom: 1px solid rgba(183, 214, 235, 0.14);
+  border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0));
+  background: linear-gradient(180deg, rgba(85, 216, 255, 0.035), transparent);
 }
 
 .card-header::after {
@@ -78,7 +76,7 @@ defineProps({
   bottom: -1px;
   width: 72px;
   height: 1px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.82), var(--accent-cyan), transparent);
+  background: linear-gradient(90deg, var(--accent-cyan), rgba(85, 216, 255, 0.18), transparent);
 }
 
 .title-bar {
@@ -87,8 +85,8 @@ defineProps({
   border-radius: 50%;
   background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green));
   box-shadow:
-    0 0 0 4px rgba(120, 232, 255, 0.1),
-    0 0 14px rgba(120, 232, 255, 0.18);
+    0 0 0 4px var(--info-soft),
+    0 0 12px rgba(85, 216, 255, 0.18);
 }
 
 .card-icon {
@@ -99,7 +97,7 @@ defineProps({
 .title-text {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-1);
+  color: var(--text-strong);
   flex: 1;
   letter-spacing: 0.5px;
   text-shadow: 0 1px 10px rgba(214, 232, 247, 0.08);

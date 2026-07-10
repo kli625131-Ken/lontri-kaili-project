@@ -75,13 +75,13 @@
               ><span class="stat-label">总记录</span>
             </div>
             <div class="stat-item">
-              <span class="stat-value" style="color: #ff6b6b">{{
+              <span class="stat-value" style="color: var(--danger)">{{
                 errorCount
               }}</span
               ><span class="stat-label">异常</span>
             </div>
             <div class="stat-item">
-              <span class="stat-value" style="color: #ffd700">{{
+              <span class="stat-value" style="color: var(--warning)">{{
                 warningCount
               }}</span
               ><span class="stat-label">警告</span>
@@ -488,12 +488,13 @@ const initCharts = () => {
   if (!window.echarts) return;
   statsChartInstance = window.echarts.init(statsChart.value);
   statsChartInstance.setOption({
+    tooltip: { trigger: "item", backgroundColor: "rgba(7,24,42,0.96)", borderColor: "rgba(85,216,255,0.34)", textStyle: { color: "#e7f2ff" } },
     legend: {
       right: "15%",
       top: "center",
       orient: "vertical",
       itemGap: 15,
-      textStyle: { color: "#fff" },
+      textStyle: { color: "#c1d3e7" },
     },
     series: [
       {
@@ -501,9 +502,9 @@ const initCharts = () => {
         radius: ["35%", "85%"],
         center: ["30%", "50%"],
         data: [
-          { value: 65, name: "信息", itemStyle: { color: "#00d4aa" } },
-          { value: 25, name: "警告", itemStyle: { color: "#ffd700" } },
-          { value: 10, name: "异常", itemStyle: { color: "#ff6b6b" } },
+          { value: 65, name: "信息", itemStyle: { color: "#55d8ff" } },
+          { value: 25, name: "警告", itemStyle: { color: "#ffd166" } },
+          { value: 10, name: "异常", itemStyle: { color: "#ff6678" } },
         ],
         label: { show: false },
       },
@@ -511,6 +512,7 @@ const initCharts = () => {
   });
   onlineChartInstance = window.echarts.init(onlineChart.value);
   onlineChartInstance.setOption({
+    tooltip: { trigger: "item", backgroundColor: "rgba(7,24,42,0.96)", borderColor: "rgba(85,216,255,0.34)", textStyle: { color: "#e7f2ff" } },
     series: [
       {
         type: "gauge",
@@ -524,10 +526,10 @@ const initCharts = () => {
           overlap: false,
           roundCap: true,
           clip: false,
-          itemStyle: { color: "#00d4aa" },
+          itemStyle: { color: "#5ee79a" },
         },
         axisLine: {
-          lineStyle: { width: 10, color: [[1, "rgba(255,255,255,0.1)"]] },
+          lineStyle: { width: 10, color: [[1, "rgba(113,140,166,0.18)"]] },
         },
         splitLine: { show: false },
         axisTick: { show: false },
@@ -537,7 +539,7 @@ const initCharts = () => {
           valueAnimation: true,
           fontSize: 24,
           fontWeight: "bold",
-          color: "#00d4aa",
+          color: "#5ee79a",
           formatter: "{value}%",
           offsetCenter: [0, 0],
         },
@@ -1201,4 +1203,53 @@ onUnmounted(() => {
 .btn-close:hover {
   background: rgba(255, 255, 255, 0.1);
 }
+
+/* Unified deep-sea theme: color-only overrides. */
+.filter-section, .logs-header, .pagination { border-color: var(--border-subtle); }
+.filter-title, .th, .alarm-title, .legend-value { color: var(--text-strong); }
+.type-label, .td, .detail-content, .detail-level, .detail-status, .detail-value { color: var(--text-secondary); }
+.time-item label, .stat-label, .online-label, .alarm-time, .detail-item label { color: var(--text-tertiary); }
+.radio-mark { border-color: var(--border-default); }
+.type-item input:checked + .radio-mark { border-color: var(--accent-cyan); }
+.type-item input:checked + .radio-mark::after { background: var(--accent-cyan); }
+.time-input { background: var(--control-bg); border-color: var(--border-default); color: var(--text-secondary); }
+.quick-btn, .level-tag, .export-btn, .page-btn, .btn-close { background: var(--control-bg); border-color: var(--border-subtle); color: var(--text-tertiary); }
+.quick-btn:hover, .export-btn:hover, .page-btn:hover:not(:disabled) { background: var(--control-bg-hover); border-color: var(--border-active); color: var(--accent-cyan); }
+.level-tag.info.active { background: var(--info-soft); border-color: var(--info-border); color: var(--accent-cyan); }
+.level-tag.warning.active { background: var(--warning-soft); border-color: var(--warning-border); color: var(--warning); }
+.level-tag.error.active { background: var(--danger-soft); border-color: var(--danger-border); color: var(--danger); }
+.search-btn, .btn-resolve { background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan)); color: var(--bg-page-deep); }
+.search-btn:hover, .btn-resolve:hover { box-shadow: 0 4px 20px rgba(85, 216, 255, 0.20); }
+.stat-value, .page-num, .online-value, .modal-header h3 { color: var(--text-primary); }
+.logs-table { border-color: var(--border-subtle); background: rgba(7, 24, 42, 0.34); }
+.table-header { background: rgba(77, 159, 255, 0.11); }
+.table-row { border-bottom-color: rgba(105, 176, 235, 0.11); }
+.table-row:hover { background: rgba(85, 216, 255, 0.055); }
+.level-dot.info, .legend-dot.info { background: var(--accent-cyan); }
+.level-dot.warning, .legend-dot.warning { background: var(--warning); }
+.level-dot.error, .legend-dot.error { background: var(--danger); }
+.type-badge { background: var(--info-soft); color: var(--accent-cyan); }
+.status-badge.normal { background: var(--success-soft); color: var(--success); }
+.status-badge.pending { background: var(--warning-soft); color: var(--warning); }
+.status-badge.resolved { background: var(--offline-soft); color: var(--offline); }
+.legend-label, .page-info { color: var(--text-tertiary); }
+.online-item, .alarm-item { background: rgba(7, 24, 42, 0.66); border: 1px solid var(--border-subtle); }
+.online-icon.online { color: var(--success); }
+.online-icon.offline { color: var(--danger); }
+.online-icon.warning { color: var(--warning); }
+.alarm-list { scrollbar-color: var(--border-default) transparent; }
+.alarm-list::-webkit-scrollbar-thumb { background: var(--border-default); }
+.alarm-level.error { background: var(--danger-soft); color: var(--danger); }
+.alarm-level.warning { background: var(--warning-soft); color: var(--warning); }
+.alarm-level.info { background: var(--info-soft); color: var(--accent-cyan); }
+.modal-overlay { background: var(--overlay-bg); }
+.modal { background: linear-gradient(145deg, var(--card-bg-strong), var(--bg-page)); border-color: var(--border-default); box-shadow: var(--shadow-elevated); }
+.modal-header, .modal-footer { border-color: var(--border-subtle); }
+.close-btn { color: var(--text-tertiary); }
+.close-btn:hover { color: var(--text-primary); }
+.detail-level.info, .detail-status.normal { color: var(--accent-cyan); }
+.detail-level.warning, .detail-status.pending { color: var(--warning); }
+.detail-level.error { color: var(--danger); }
+.detail-status.resolved { color: var(--offline); }
+.detail-content { background: var(--control-bg); border: 1px solid var(--border-subtle); }
 </style>

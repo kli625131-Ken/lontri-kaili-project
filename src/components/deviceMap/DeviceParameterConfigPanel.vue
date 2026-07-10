@@ -30,41 +30,26 @@
       <span class="section-tag">0 - 100%</span>
     </div>
     <div class="metric-grid">
-      <datalist :id="brightnessListId">
-        <option v-for="value in brightnessOptions" :key="value" :value="`${value}%`"></option>
-      </datalist>
       <div class="metric-card">
         <span class="metric-label">开机亮度</span>
-        <label class="metric-input-wrap" :class="{ invalid: getError('brightness') }">
-          <input
-            :value="model.brightness"
-            :list="brightnessListId"
-            type="text"
-            inputmode="numeric"
-            pattern="[0-9]*"
-            class="metric-input"
-            @input="handlePercentChange($event, 'brightness')"
-            @blur="handlePercentBlur('brightness')"
-          />
-          <span>%</span>
-        </label>
+        <BrightnessSelectInput
+          :model-value="model.brightness"
+          :options="brightnessOptions"
+          :invalid="!!getError('brightness')"
+          @input="handlePercentChange($event, 'brightness')"
+          @blur="handlePercentBlur('brightness')"
+        />
         <small v-if="getError('brightness')" class="metric-error">{{ getError('brightness') }}</small>
       </div>
       <div class="metric-card">
         <span class="metric-label">背景亮度</span>
-        <label class="metric-input-wrap" :class="{ invalid: getError('bgBrightness') }">
-          <input
-            :value="model.bgBrightness"
-            :list="brightnessListId"
-            type="text"
-            inputmode="numeric"
-            pattern="[0-9]*"
-            class="metric-input"
-            @input="handlePercentChange($event, 'bgBrightness')"
-            @blur="handlePercentBlur('bgBrightness')"
-          />
-          <span>%</span>
-        </label>
+        <BrightnessSelectInput
+          :model-value="model.bgBrightness"
+          :options="brightnessOptions"
+          :invalid="!!getError('bgBrightness')"
+          @input="handlePercentChange($event, 'bgBrightness')"
+          @blur="handlePercentBlur('bgBrightness')"
+        />
         <small v-if="getError('bgBrightness')" class="metric-error">{{ getError('bgBrightness') }}</small>
       </div>
     </div>
@@ -98,6 +83,9 @@
 </template>
 
 <script setup>
+import BrightnessSelectInput from './BrightnessSelectInput.vue'
+import { DEVICE_MAP_BRIGHTNESS_OPTIONS } from './deviceMapOptions'
+
 const props = defineProps({
   model: {
     type: Object,
@@ -105,7 +93,7 @@ const props = defineProps({
   },
   brightnessOptions: {
     type: Array,
-    default: () => [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+    default: () => DEVICE_MAP_BRIGHTNESS_OPTIONS
   },
   timeFields: {
     type: Array,
@@ -126,10 +114,6 @@ const props = defineProps({
         hint: '手动模式下无人感保持时长，到期恢复自动'
       }
     ]
-  },
-  brightnessListId: {
-    type: String,
-    default: 'brightness-percent-options'
   },
   getFieldError: {
     type: Function,
@@ -360,4 +344,17 @@ function handleDurationBlur(key) {
   font-family: var(--font-num);
   text-align: left;
 }
+
+/* Shared form and status palette. */
+.section-head, .time-title { color: var(--text-strong); }
+.section-tag { border-color: var(--border-subtle); color: var(--text-secondary); background: var(--info-soft); }
+.action-btn { border-color: var(--border-subtle); background: var(--control-bg); color: var(--text-secondary); }
+.action-btn.active, .action-btn:hover { color: var(--bg-page-deep); border-color: var(--border-active); background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan)); }
+.section-desc, .time-copy { color: var(--text-tertiary); }
+.metric-card, .time-card { border-color: var(--border-subtle); background: rgba(7, 24, 42, 0.72); }
+.metric-label { color: var(--text-secondary); }
+.metric-input-wrap, .time-input-wrap { border-color: var(--border-default); background: var(--control-bg); color: var(--accent-cyan); }
+.metric-input, .time-input { color: var(--accent-cyan); }
+.metric-input-wrap.invalid, .time-input-wrap.invalid { border-color: var(--danger-border); }
+.metric-error { color: var(--danger); }
 </style>

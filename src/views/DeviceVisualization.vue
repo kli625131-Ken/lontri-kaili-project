@@ -112,6 +112,15 @@
 
         <div class="map-shell">
           <div class="map-backdrop"></div>
+          <transition name="region-hint-fade">
+            <div
+              v-if="regionInteractionHint"
+              class="map-region-hint"
+              :class="{ 'operation-offset': operationStatusVisible }"
+            >
+              {{ regionInteractionHint }}
+            </div>
+          </transition>
 
           <svg
             ref="mapSvgRef"
@@ -122,23 +131,12 @@
             @click="handleMapBlankClick"
             @mousedown.capture="handleMapMouseDownCapture"
             @mousedown="handleMapMouseDown"
+            @mousemove="handleMapHoverMove"
+            @mouseleave="clearHoveredRegion"
             @wheel.prevent="handleWheel"
             @auxclick.prevent
             @contextmenu.prevent
           >
-            <defs>
-              <mask v-if="displayFocusedRegion" :id="focusMaskId" maskUnits="userSpaceOnUse">
-                <rect
-                  :x="currentViewBox.x"
-                  :y="currentViewBox.y"
-                  :width="currentViewBox.width"
-                  :height="currentViewBox.height"
-                  fill="white"
-                />
-                <polygon :points="pointsToString(displayFocusedRegion.points)" fill="black" />
-              </mask>
-            </defs>
-
             <rect
               class="map-base-bg"
               :x="originalViewBox.x"
@@ -149,18 +147,6 @@
             <g ref="mapContentRef" class="map-floor-layer" :class="floorLayerClasses"></g>
 
             <g class="map-overlay">
-              <g v-if="displayFocusedRegion" class="focus-mask-layer">
-                <rect
-                  class="focus-dim"
-                  :x="currentViewBox.x"
-                  :y="currentViewBox.y"
-                  :width="currentViewBox.width"
-                  :height="currentViewBox.height"
-                  :mask="`url(#${focusMaskId})`"
-                  @click.stop="exitFocusedRegion"
-                />
-              </g>
-
               <g class="region-layer">
                 <g
                   v-for="region in regions"
@@ -196,26 +182,6 @@
                     :class="{ active: displayFocusedRegion?.id === region.id, dimmed: displayFocusedRegion && displayFocusedRegion.id !== region.id }"
                     :style="getRegionStyle(region)"
                   />
-                  <g class="region-label-group">
-                    <text
-                      class="region-label"
-                      :x="getRegionLabel(region).x"
-                      :y="getRegionLabel(region).y - 4"
-                      :font-size="getRegionCodeFontSize()"
-                      :stroke-width="getRegionTextStrokeWidth()"
-                    >
-                      {{ getRegionDisplayCode(region) }}
-                    </text>
-                    <text
-                      class="region-badge"
-                      :x="getRegionLabel(region).x"
-                      :y="getRegionLabel(region).y + 8"
-                      :font-size="getRegionBadgeFontSize()"
-                      :stroke-width="getRegionTextStrokeWidth()"
-                    >
-                      {{ region.memberIds.length }}台
-                    </text>
-                  </g>
                   <g v-if="isConfigMode && activeEditTool === 'edit-region' && editingRegionId === region.id" class="region-edit-handles">
                     <circle
                       v-for="insertHandle in getPolygonInsertHandles(region)"
@@ -246,7 +212,7 @@
                 <g
                   v-for="device in visibleGwDevices"
                   :key="device.id"
-                  class="interactive-node"
+                  class="interactive-node device-node-gw"
                   :class="{ dimmed: displayFocusedRegion && !isDeviceInFocusedRegion(device), blocked: displayFocusedRegion && !isDeviceInFocusedRegion(device) }"
                   @mouseenter="hoveredDeviceId = device.id"
                   @mouseleave="hoveredDeviceId = ''"
@@ -255,10 +221,11 @@
                 >
                   <rect
                     class="device-hit-area"
-                    :x="device.x - getDeviceHitSize(device) / 2"
-                    :y="device.y - getDeviceHitSize(device) / 2"
-                    :width="getDeviceHitSize(device)"
-                    :height="getDeviceHitSize(device)"
+                    :x="getDeviceHitBounds(device).x"
+                    :y="getDeviceHitBounds(device).y"
+                    :width="getDeviceHitBounds(device).width"
+                    :height="getDeviceHitBounds(device).height"
+                    :rx="getDeviceHitBounds(device).radius"
                   />
                   <image
                     class="device-icon"
@@ -274,11 +241,11 @@
                   <rect
                     v-if="isActiveDevice('gw', device)"
                     class="device-icon-outline"
-                    :x="device.x - getDeviceIconSize(device) / 2"
-                    :y="device.y - getDeviceIconSize(device) / 2"
-                    :width="getDeviceIconSize(device)"
-                    :height="getDeviceIconSize(device)"
-                    rx="3"
+                    :x="getDeviceSelectionBounds(device).x"
+                    :y="getDeviceSelectionBounds(device).y"
+                    :width="getDeviceSelectionBounds(device).width"
+                    :height="getDeviceSelectionBounds(device).height"
+                    :rx="getDeviceSelectionBounds(device).radius"
                   />
                   <text
                     v-if="shouldShowDeviceCode(device)"
@@ -295,7 +262,7 @@
                 <g
                   v-for="device in visibleCuDevices"
                   :key="device.id"
-                  class="interactive-node"
+                  class="interactive-node device-node-cu"
                   :class="{ dimmed: displayFocusedRegion && !isDeviceInFocusedRegion(device), blocked: displayFocusedRegion && !isDeviceInFocusedRegion(device) }"
                   @mouseenter="hoveredDeviceId = device.id"
                   @mouseleave="hoveredDeviceId = ''"
@@ -304,10 +271,11 @@
                 >
                   <rect
                     class="device-hit-area"
-                    :x="device.x - getDeviceHitSize(device) / 2"
-                    :y="device.y - getDeviceHitSize(device) / 2"
-                    :width="getDeviceHitSize(device)"
-                    :height="getDeviceHitSize(device)"
+                    :x="getDeviceHitBounds(device).x"
+                    :y="getDeviceHitBounds(device).y"
+                    :width="getDeviceHitBounds(device).width"
+                    :height="getDeviceHitBounds(device).height"
+                    :rx="getDeviceHitBounds(device).radius"
                   />
                   <image
                     class="device-icon"
@@ -323,11 +291,11 @@
                   <rect
                     v-if="isActiveDevice('cu', device)"
                     class="device-icon-outline"
-                    :x="device.x - getDeviceIconSize(device) / 2"
-                    :y="device.y - getDeviceIconSize(device) / 2"
-                    :width="getDeviceIconSize(device)"
-                    :height="getDeviceIconSize(device)"
-                    rx="3"
+                    :x="getDeviceSelectionBounds(device).x"
+                    :y="getDeviceSelectionBounds(device).y"
+                    :width="getDeviceSelectionBounds(device).width"
+                    :height="getDeviceSelectionBounds(device).height"
+                    :rx="getDeviceSelectionBounds(device).radius"
                   />
                   <text
                     v-if="shouldShowDeviceCode(device)"
@@ -342,35 +310,34 @@
                 </g>
               </g>
 
-              <g class="region-label-hit-layer" :class="{ disabled: isConfigMode }">
+              <g class="region-label-layer">
                 <g
                   v-for="region in regions"
-                  :key="`region-label-hit-${region.id}`"
-                  class="region-label-hit-node"
-                  :class="{ blocked: displayFocusedRegion && displayFocusedRegion.id !== region.id, 'focus-outside': displayFocusedRegion && displayFocusedRegion.id !== region.id }"
-                  @click.stop="handleRegionClick(region)"
+                  :key="`region-label-${region.id}`"
+                  v-show="!isRegionLabelHidden(region)"
+                  class="region-label-node"
                 >
                   <rect
-                    class="region-label-hit-box"
-                    :x="getRegionLabelHitBox(region).x"
-                    :y="getRegionLabelHitBox(region).y"
-                    :width="getRegionLabelHitBox(region).width"
-                    :height="getRegionLabelHitBox(region).height"
-                    rx="4"
+                    class="region-label-bg"
+                    :x="getRegionLabelLayout(region).x"
+                    :y="getRegionLabelLayout(region).y"
+                    :width="getRegionLabelLayout(region).width"
+                    :height="getRegionLabelLayout(region).height"
+                    :rx="getRegionLabelLayout(region).radius"
                   />
                   <text
-                    class="region-label region-label-hit-text"
+                    class="region-label"
                     :x="getRegionLabel(region).x"
-                    :y="getRegionLabel(region).y - 4"
+                    :y="getRegionLabelLayout(region).titleY"
                     :font-size="getRegionCodeFontSize()"
                     :stroke-width="getRegionTextStrokeWidth()"
                   >
                     {{ getRegionDisplayCode(region) }}
                   </text>
                   <text
-                    class="region-badge region-label-hit-text"
+                    class="region-badge"
                     :x="getRegionLabel(region).x"
-                    :y="getRegionLabel(region).y + 8"
+                    :y="getRegionLabelLayout(region).badgeY"
                     :font-size="getRegionBadgeFontSize()"
                     :stroke-width="getRegionTextStrokeWidth()"
                   >
@@ -453,15 +420,15 @@
                 />
               </g>
 
-              <g v-if="displayFocusedRegion" class="focus-intercept-layer">
-                <path
-                  class="focus-exit-hit"
-                  :d="focusExitPath"
-                  fill-rule="evenodd"
-                  @mousedown.stop
-                  @click.stop="exitFocusedRegion"
-                />
-              </g>
+              <path
+                v-if="displayFocusedRegion"
+                class="focus-dim"
+                :d="focusExitPath"
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                @mousedown.stop
+                @click.stop="exitFocusedRegion"
+              />
             </g>
           </svg>
 
@@ -569,24 +536,13 @@
               v-if="configDrawerVisible"
               :key="configDrawerKey"
               :target="configDrawerTarget"
-              :target-type="configDrawerTargetType"
-              :devices="cuDevices"
               :draft-state="draftState"
-              :validation-messages="validationMessages"
+              :workflow="regionWorkflow"
+              :workflow-busy="workflowBusy"
               :initial-tab="configDrawerTab"
-              :scene-modes="areaModes"
               @close="closeConfigDrawer"
-              @update-region="handleUpdateRegionInfo"
-              @create-area-group="handleCreateAreaGroup"
-              @bind-area-group="handleBindAreaGroup"
-              @save-area-group="handleSaveAreaGroup"
-              @create-default-scenes="handleCreateDefaultScenes"
-              @create-custom-scene="handleCreateCustomScene"
-              @save-scene="handleSaveScene"
-              @use-param-template="handleUseParamTemplate"
+              @workflow-action="handleWorkflowAction"
               @save-cu-params="handleSaveCuParams"
-              @test-action="handleMockTestAction"
-              @validate="handleValidateDraft"
             />
             <aside
               v-else-if="activeDrawer"
@@ -660,45 +616,30 @@
                       <span class="section-tag">0 - 100%</span>
                     </div>
                     <div class="metric-grid">
-                      <datalist id="brightness-percent-options">
-                        <option v-for="value in brightnessOptions" :key="value" :value="`${value}%`"></option>
-                      </datalist>
                       <div class="metric-card">
                         <span class="metric-label">开机亮度</span>
-                        <label class="metric-input-wrap" :class="{ invalid: getDeviceFieldError(selectedCu, 'brightness') }">
-                          <input
-                            :value="selectedCu.brightness"
-                            list="brightness-percent-options"
-                            type="text"
-                            inputmode="numeric"
-                            pattern="[0-9]*"
-                            :readonly="!isConfigMode"
-                            class="metric-input"
-                            @input="handlePercentInput($event, selectedCu, 'brightness')"
-                            @blur="normalizePercentField(selectedCu, 'brightness')"
-                          />
-                          <span>%</span>
-                        </label>
+                        <BrightnessSelectInput
+                          :model-value="selectedCu.brightness"
+                          :options="brightnessOptions"
+                          :readonly="!isConfigMode"
+                          :invalid="!!getDeviceFieldError(selectedCu, 'brightness')"
+                          @input="handlePercentInput($event, selectedCu, 'brightness')"
+                          @blur="normalizePercentField(selectedCu, 'brightness')"
+                        />
                         <small v-if="getDeviceFieldError(selectedCu, 'brightness')" class="metric-error">
                           {{ getDeviceFieldError(selectedCu, 'brightness') }}
                         </small>
                       </div>
                       <div class="metric-card">
                         <span class="metric-label">背景亮度</span>
-                        <label class="metric-input-wrap" :class="{ invalid: getDeviceFieldError(selectedCu, 'bgBrightness') }">
-                          <input
-                            :value="selectedCu.bgBrightness"
-                            list="brightness-percent-options"
-                            type="text"
-                            inputmode="numeric"
-                            pattern="[0-9]*"
-                            :readonly="!isConfigMode"
-                            class="metric-input"
-                            @input="handlePercentInput($event, selectedCu, 'bgBrightness')"
-                            @blur="normalizePercentField(selectedCu, 'bgBrightness')"
-                          />
-                          <span>%</span>
-                        </label>
+                        <BrightnessSelectInput
+                          :model-value="selectedCu.bgBrightness"
+                          :options="brightnessOptions"
+                          :readonly="!isConfigMode"
+                          :invalid="!!getDeviceFieldError(selectedCu, 'bgBrightness')"
+                          @input="handlePercentInput($event, selectedCu, 'bgBrightness')"
+                          @blur="normalizePercentField(selectedCu, 'bgBrightness')"
+                        />
                         <small v-if="getDeviceFieldError(selectedCu, 'bgBrightness')" class="metric-error">
                           {{ getDeviceFieldError(selectedCu, 'bgBrightness') }}
                         </small>
@@ -855,7 +796,6 @@
                       :model="selectedGw"
                       :brightness-options="brightnessOptions"
                       :time-fields="deviceParamTimeFields"
-                      brightness-list-id="gateway-brightness-percent-options"
                       :get-field-error="(key) => getDeviceFieldError(selectedGw, key)"
                       :on-percent-change="(event, key) => handlePercentInput(event, selectedGw, key)"
                       :on-percent-blur="(key) => normalizePercentField(selectedGw, key)"
@@ -974,10 +914,12 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue'
 import DataCard from '../components/DataCard.vue'
+import BrightnessSelectInput from '../components/deviceMap/BrightnessSelectInput.vue'
 import DeviceParameterConfigPanel from '../components/deviceMap/DeviceParameterConfigPanel.vue'
 import MapConfigDrawer from '../components/deviceMap/MapConfigDrawer.vue'
 import MapEditToolbar from '../components/deviceMap/MapEditToolbar.vue'
 import MapModeSwitch from '../components/deviceMap/MapModeSwitch.vue'
+import { DEVICE_MAP_BRIGHTNESS_OPTIONS } from '../components/deviceMap/deviceMapOptions'
 import cuIconUrl from '../assets/images/devices/CU.png'
 import gwIconUrl from '../assets/images/devices/GW.png'
 import {
@@ -997,14 +939,29 @@ import {
   createDraftFromOverlay,
   createInitialDraftState,
   loadMapState,
-  mockControl,
   removeDeviceFromDraft,
   saveDraft,
-  upsertAreaGroup,
-  validateAreaGroupGateway,
   validateDraftState
 } from '../services/deviceMapLocalService'
 import { DEVICE_MAP_PROJECT_ID } from '../mock/deviceMapMockData'
+import {
+  addCustomScene,
+  configureAreaGroup,
+  configurePanel,
+  configureSubscription,
+  completeRegionWorkflow,
+  deleteRegionWorkflow,
+  getRegionWorkflow,
+  removeCustomScene,
+  retryAreaGroupFailures,
+  retrySceneFailures,
+  saveScenes,
+  setOptionalStep,
+  switchAndVerifyScene,
+  syncRegionMembers,
+  verifyGroupControl,
+  verifyPanel
+} from '../services/deviceMapWorkflowService'
 
 const mapSvgRef = ref(null)
 const mapContentRef = ref(null)
@@ -1026,6 +983,7 @@ const recognitionDebug = ref(null)
 const debugEnabled = ref(false)
 const deviceLayerFilter = ref('all')
 const focusedRegionId = ref('')
+const hoveredRegionId = ref('')
 const selectedMapId = ref(DEFAULT_DEVICE_VISUALIZATION_MAP_ID)
 const isMiddlePanning = ref(false)
 const hoveredDeviceId = ref('')
@@ -1040,6 +998,8 @@ const configDrawerTarget = ref(null)
 const configDrawerTargetType = ref('')
 const configDrawerTab = ref('base')
 const configDrawerOpenSeq = ref(0)
+const regionWorkflow = ref(null)
+const workflowBusy = ref(false)
 const validationMessages = ref([])
 const deviceInputErrors = ref({})
 const gatewayDrawerTab = ref('scene')
@@ -1087,8 +1047,12 @@ const REGION_FOCUS_ANIMATION_MS = 240
 const REGION_GLOW_DISABLE_ZOOM = 2.6
 const MAX_ZOOM = 15
 const EDIT_HISTORY_LIMIT = 30
-const focusMaskId = 'floor1-region-focus-mask'
 const REGION_COLORS = ['#9b6df0', '#5b8fe8', '#72b982', '#f0ad48', '#58bfd1', '#e86b6b']
+const DEFAULT_DEVICE_ICON_BOUNDS = {
+  cu: { left: 0.08, top: 0.08, right: 0.92, bottom: 0.92 },
+  gw: { left: 0.06, top: 0.06, right: 0.94, bottom: 0.94 }
+}
+const deviceIconAlphaBounds = ref({ ...DEFAULT_DEVICE_ICON_BOUNDS })
 
 let drawerMessageTimer = null
 let viewBoxAnimationFrame = null
@@ -1153,6 +1117,19 @@ const focusedRegionBounds = computed(() => {
   return { x: bbox.minX, y: bbox.minY, width: bbox.width, height: bbox.height }
 })
 const displayFocusedRegion = computed(() => (isConfigMode.value ? null : focusedRegion.value))
+const hoveredRegion = computed(() => regions.value.find((region) => region.id === hoveredRegionId.value) || null)
+const configSelectedRegion = computed(() => {
+  if (!isConfigMode.value) return null
+  const regionId = configDrawerTarget.value?.id || editingRegionId.value
+  return regions.value.find((region) => region.id === regionId) || null
+})
+const selectedInteractionRegion = computed(() => displayFocusedRegion.value || configSelectedRegion.value)
+const regionInteractionHint = computed(() => {
+  const selected = selectedInteractionRegion.value
+  if (selected) return `当前选中区域：${selected.name || selected.id}`
+  const hovered = hoveredRegion.value
+  return hovered ? `当前停留区域：${hovered.name || hovered.id}` : ''
+})
 const displayFocusedRegionBounds = computed(() => {
   if (!displayFocusedRegion.value) return { x: 0, y: 0, width: 0, height: 0 }
   const bbox = getPointsBBox(displayFocusedRegion.value.points)
@@ -1225,7 +1202,7 @@ const deviceLayerOptions = [
   { label: 'CU', value: 'cu' },
   { label: '网关', value: 'gw' }
 ]
-const brightnessOptions = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+const brightnessOptions = DEVICE_MAP_BRIGHTNESS_OPTIONS
 const editToolValues = new Set([
   'select',
   'draw-rect',
@@ -1269,6 +1246,7 @@ onMounted(async () => {
     mapResizeObserver = new ResizeObserver(updateMapViewportSize)
     mapResizeObserver.observe(mapSvgRef.value)
   }
+  void loadDeviceIconBounds()
   await loadFloorMap()
 })
 
@@ -1337,6 +1315,7 @@ function handleMapModeChange(mode) {
   }
 
   mapMode.value = mode
+  hoveredRegionId.value = ''
   if (editDragState.value) {
     cancelActiveEditDrag('已取消编辑')
   } else {
@@ -1376,6 +1355,7 @@ function setEditTool(tool) {
   }
   stopShapeDrawingListeners()
   activeEditTool.value = tool
+  if (tool !== 'select') closeConfigDrawer()
   syncConfigToolbarGroup(tool)
   clearDraft()
   drawingShape.value = null
@@ -1406,8 +1386,8 @@ function getConfigTabByTool(tool) {
     'area-group': 'areaGroup',
     scene: 'scene',
     'cu-param': 'params',
-    validate: 'validate'
-  }[tool] || 'base'
+    validate: 'workbench'
+  }[tool] || 'workbench'
 }
 
 function getEditToolLabel(tool) {
@@ -1531,6 +1511,7 @@ function resetMapInteractionState() {
   stopShapeDrawingListeners()
   activeDrawer.value = null
   focusedRegionId.value = ''
+  hoveredRegionId.value = ''
   hoveredDeviceId.value = ''
   drawerMessage.value = ''
   clearDraft()
@@ -2092,8 +2073,90 @@ function getDeviceIconSize(device) {
   return device.type === 'gw' ? 16 : 12
 }
 
-function getDeviceHitSize(device) {
-  return Math.max(getDeviceIconSize(device) + 6, device.type === 'gw' ? 22 : 14)
+function getDeviceVisibleBounds(device) {
+  const size = getDeviceIconSize(device)
+  const bounds = deviceIconAlphaBounds.value[device.type] || DEFAULT_DEVICE_ICON_BOUNDS.cu
+  const imageX = device.x - size / 2
+  const imageY = device.y - size / 2
+  return {
+    x: imageX + size * bounds.left,
+    y: imageY + size * bounds.top,
+    width: size * (bounds.right - bounds.left),
+    height: size * (bounds.bottom - bounds.top)
+  }
+}
+
+function getDeviceSelectionBounds(device) {
+  const visible = getDeviceVisibleBounds(device)
+  const padding = device.type === 'gw' ? 0.9 : 0.65
+  return expandDeviceBounds(visible, padding)
+}
+
+function getDeviceHitBounds(device) {
+  const visible = getDeviceVisibleBounds(device)
+  const padding = device.type === 'gw' ? 2.2 : 1.5
+  return expandDeviceBounds(visible, padding)
+}
+
+function expandDeviceBounds(bounds, padding) {
+  return {
+    x: bounds.x - padding,
+    y: bounds.y - padding,
+    width: bounds.width + padding * 2,
+    height: bounds.height + padding * 2,
+    radius: Math.min(3, Math.max(1.5, Math.min(bounds.width, bounds.height) * 0.2))
+  }
+}
+
+async function loadDeviceIconBounds() {
+  const [cuBounds, gwBounds] = await Promise.all([
+    detectImageAlphaBounds(cuIconUrl, DEFAULT_DEVICE_ICON_BOUNDS.cu),
+    detectImageAlphaBounds(gwIconUrl, DEFAULT_DEVICE_ICON_BOUNDS.gw)
+  ])
+  deviceIconAlphaBounds.value = { cu: cuBounds, gw: gwBounds }
+}
+
+function detectImageAlphaBounds(url, fallback) {
+  return new Promise((resolve) => {
+    const image = new Image()
+    image.onload = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = image.naturalWidth
+        canvas.height = image.naturalHeight
+        const context = canvas.getContext('2d', { willReadFrequently: true })
+        context.drawImage(image, 0, 0)
+        const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
+        let minX = canvas.width
+        let minY = canvas.height
+        let maxX = -1
+        let maxY = -1
+        for (let y = 0; y < canvas.height; y += 1) {
+          for (let x = 0; x < canvas.width; x += 1) {
+            if (pixels[(y * canvas.width + x) * 4 + 3] <= 16) continue
+            minX = Math.min(minX, x)
+            minY = Math.min(minY, y)
+            maxX = Math.max(maxX, x)
+            maxY = Math.max(maxY, y)
+          }
+        }
+        if (maxX < minX || maxY < minY) {
+          resolve(fallback)
+          return
+        }
+        resolve({
+          left: minX / canvas.width,
+          top: minY / canvas.height,
+          right: (maxX + 1) / canvas.width,
+          bottom: (maxY + 1) / canvas.height
+        })
+      } catch (error) {
+        resolve(fallback)
+      }
+    }
+    image.onerror = () => resolve(fallback)
+    image.src = url
+  })
 }
 
 function isActiveDevice(type, device) {
@@ -2299,7 +2362,6 @@ async function handleRegionClick(region) {
   clearActiveDevice()
 
   if (focusedRegionId.value === region.id) {
-    clearFocusRegion()
     return
   }
 
@@ -2318,6 +2380,7 @@ async function handleConfigRegionClick(region) {
   }
 
   if (activeEditTool.value === 'edit-region') {
+    closeConfigDrawer()
     activeDrawer.value = null
     focusedRegionId.value = ''
     editingRegionId.value = region.id
@@ -2329,7 +2392,7 @@ async function handleConfigRegionClick(region) {
     activeDrawer.value = null
     focusedRegionId.value = ''
     editingRegionId.value = ''
-    openConfigDrawer(region, 'area', 'base')
+    openConfigDrawer(region, 'area', 'workbench')
     commitDrawerMessage(`已打开 ${region.name} 配置`)
   }
 }
@@ -2383,6 +2446,7 @@ function setZoomLevel(nextScale) {
 
 function handleMapBlankClick(event) {
   const target = event.target
+  if (displayFocusedRegion.value && !target.classList?.contains('focus-dim')) return
   if (
     target === mapSvgRef.value ||
     target.classList?.contains('map-base-bg') ||
@@ -2395,6 +2459,24 @@ function handleMapBlankClick(event) {
     clearActiveDevice()
     if (focusedRegionId.value) resetView()
   }
+}
+
+function handleMapHoverMove(event) {
+  if (isMiddlePanning.value) {
+    clearHoveredRegion()
+    return
+  }
+  const point = clientToMapPoint(event)
+  if (!point) {
+    clearHoveredRegion()
+    return
+  }
+  const region = regions.value.find((item) => pointInPolygon(point, item.points))
+  hoveredRegionId.value = region?.id || ''
+}
+
+function clearHoveredRegion() {
+  hoveredRegionId.value = ''
 }
 
 function handleMapMouseDownCapture(event) {
@@ -2819,8 +2901,8 @@ function finishDrawing() {
   })
   drawMode.value = false
   clearDraft()
-  openConfigDrawer(region, 'area', 'base')
-  commitDrawerMessage(`已生成 ${region.name}`)
+  openConfigDrawer(region, 'area', 'workbench')
+  commitDrawerMessage('待配置：请创建区域组')
 }
 
 function createEditableRegion(shapeType, geometry) {
@@ -2838,12 +2920,11 @@ function createEditableRegion(shapeType, geometry) {
   )
 
   regions.value = recalculateRegions([...regions.value, region])
-  syncAreaGroupsWithRegions(regions.value)
   draftState.value = {
     ...draftState.value,
     dirty: true
   }
-  openConfigDrawer(region, 'area', 'base')
+  openConfigDrawer(region, 'area', 'workbench')
   return region
 }
 
@@ -2898,6 +2979,7 @@ function isPointInViewBox(point, viewBox, tolerance = 0) {
 function resetView() {
   stopViewBoxAnimation()
   focusedRegionId.value = ''
+  hoveredRegionId.value = ''
   currentViewBox.value = { ...originalViewBox.value }
 }
 
@@ -3111,14 +3193,9 @@ function finishEditDrag(event) {
   if (event && event.button !== 0) return
   if (!editDragState.value) return
   const state = editDragState.value
-  const wasDeviceDrag = state.type === 'device'
   editDragState.value = null
   window.removeEventListener('mousemove', handleEditDragMove)
   window.removeEventListener('mouseup', finishEditDrag)
-  if (wasDeviceDrag) {
-    regions.value = recalculateRegions(regions.value)
-    syncAreaGroupsWithRegions(regions.value)
-  }
   pushHistorySnapshot(state.beforeSnapshot)
   draftState.value = {
     ...draftState.value,
@@ -3138,7 +3215,6 @@ function updateRegionGeometry(regionId, shapeType, geometry) {
       cadGeometry: geometryToCadGeometry(shapeType, geometry, svgToCad)
     }
   }))
-  syncAreaGroupsWithRegions(regions.value)
 }
 
 function updateDevicePosition(deviceId, point) {
@@ -3168,16 +3244,21 @@ function recalculateRegions(regionList) {
 }
 
 function deleteRegion(region) {
-  const confirmed = window.confirm(`确认删除区域 ${region.name || region.id}？`)
+  const confirmed = window.confirm(`确认删除区域 ${region.name || region.id}？删除后会解除该区域的：区域组、场景、面板绑定、订阅配置、参数配置；不会删除设备点位。`)
   if (!confirmed) return
   recordMapHistory()
   regions.value = regions.value.filter((item) => item.id !== region.id)
   if (focusedRegionId.value === region.id) focusedRegionId.value = ''
   if (configDrawerTarget.value?.id === region.id) closeConfigDrawer()
+  void deleteRegionWorkflow(region.id)
   draftState.value = {
     ...draftState.value,
     dirty: true,
-    areaGroups: draftState.value.areaGroups.filter((group) => group.regionId !== region.id)
+    areaGroups: draftState.value.areaGroups.filter((group) => group.regionId !== region.id),
+    scenes: (draftState.value.scenes || []).filter((scene) => scene.regionId !== region.id),
+    panelBindings: (draftState.value.panelBindings || []).filter((binding) => binding.regionId !== region.id),
+    subscriptions: (draftState.value.subscriptions || []).filter((config) => config.regionId !== region.id),
+    cuParamConfigs: (draftState.value.cuParamConfigs || []).filter((config) => config.regionId !== region.id)
   }
   commitDrawerMessage(`已删除区域 ${region.name || region.id}`)
 }
@@ -3189,23 +3270,9 @@ function deleteDevice(device) {
   cuDevices.value = cuDevices.value.filter((item) => item.id !== device.id)
   gwDevices.value = gwDevices.value.filter((item) => item.id !== device.id)
   regions.value = recalculateRegions(regions.value)
-  syncAreaGroupsWithRegions(regions.value)
   draftState.value = removeDeviceFromDraft(draftState.value, device.id)
   clearActiveDevice()
   commitDrawerMessage(`已删除设备 ${device.shortName || device.id}`)
-}
-
-function syncAreaGroupsWithRegions(regionList) {
-  const membersByRegionId = new Map(regionList.map((region) => [region.id, region.memberIds || []]))
-  draftState.value = {
-    ...draftState.value,
-    dirty: true,
-    areaGroups: draftState.value.areaGroups.map((group) => (
-      membersByRegionId.has(group.regionId)
-        ? { ...group, memberIds: membersByRegionId.get(group.regionId) }
-        : group
-    ))
-  }
 }
 
 function openConfigDrawer(target, targetType = 'area', tab = 'base') {
@@ -3214,140 +3281,102 @@ function openConfigDrawer(target, targetType = 'area', tab = 'base') {
   configDrawerTargetType.value = targetType
   configDrawerTab.value = tab || 'base'
   configDrawerOpenSeq.value += 1
+  regionWorkflow.value = null
+  if (targetType === 'area') void loadRegionWorkflow(target)
 }
 
 function closeConfigDrawer() {
   configDrawerTarget.value = null
   configDrawerTargetType.value = ''
   configDrawerTab.value = 'base'
+  regionWorkflow.value = null
+  workflowBusy.value = false
 }
 
-function handleUpdateRegionInfo(nextRegion) {
-  if (!nextRegion?.id) return
-  recordMapHistory()
-  regions.value = regions.value.map((region) => (region.id === nextRegion.id ? { ...region, ...nextRegion } : region))
-  const updatedRegion = regions.value.find((region) => region.id === nextRegion.id)
-  if (updatedRegion) configDrawerTarget.value = updatedRegion
-  draftState.value = {
-    ...draftState.value,
-    dirty: true,
-    regions: regions.value
+async function loadRegionWorkflow(region = configDrawerTarget.value) {
+  if (!region?.id) return
+  workflowBusy.value = true
+  try {
+    regionWorkflow.value = await getRegionWorkflow(region, cuDevices.value)
+  } catch (error) {
+    commitDrawerMessage('区域关系读取失败')
+  } finally {
+    workflowBusy.value = false
   }
-  commitDrawerMessage('已更新区域基础信息')
 }
 
-function handleCreateAreaGroup(region) {
-  const memberIds = collectDevicesInShape(region, cuDevices.value)
-  const group = {
-    id: `ag-${region.id}`,
-    name: `${region.name || region.id}区域组`,
-    regionId: region.id,
-    gatewayId: '',
-    memberIds,
-    mode: 'local-draft'
-  }
-  const validation = validateAreaGroupGateway(group, cuDevices.value)
-  if (!validation.ok) {
-    validationMessages.value = [validation.message]
-    commitDrawerMessage(validation.message)
-    configDrawerTab.value = 'validate'
-    return
-  }
+async function handleWorkflowAction(action) {
+  const region = configDrawerTarget.value
+  if (!region?.id || !action?.type || workflowBusy.value) return
 
-  draftState.value = upsertAreaGroup(draftState.value, {
-    ...group,
-    gatewayId: validation.gatewayId
-  })
+  workflowBusy.value = true
   validationMessages.value = []
-  commitDrawerMessage('已保存草稿')
-}
-
-function handleBindAreaGroup(region) {
-  handleCreateAreaGroup(region)
-  commitDrawerMessage('已保存草稿')
-}
-
-function handleSaveAreaGroup(payload) {
-  const region = payload.region
-  const memberIds = collectDevicesInShape(region, cuDevices.value)
-  const group = {
-    id: `ag-${region.id}`,
-    name: payload.areaGroup?.name || `${region.name || region.id}区域组`,
-    groupNo: payload.areaGroup?.groupNo || '',
-    regionId: region.id,
-    gatewayId: '',
-    memberIds,
-    mode: 'draft'
+  const onProgress = (workflow) => {
+    regionWorkflow.value = workflow
   }
-  const validation = validateAreaGroupGateway(group, cuDevices.value)
-  if (!validation.ok) {
-    validationMessages.value = [validation.message]
-    configDrawerTab.value = 'validate'
-    commitDrawerMessage('校验失败')
-    return
+
+  try {
+    let result
+    switch (action.type) {
+      case 'configure-group':
+        result = await configureAreaGroup(region.id, { onProgress })
+        break
+      case 'retry-group':
+        result = await retryAreaGroupFailures(region.id, { onProgress })
+        break
+      case 'verify-group':
+        result = await verifyGroupControl(region.id, action.action, { value: action.value, onProgress })
+        break
+      case 'configure-scenes':
+        result = await saveScenes(region.id, action.scenes, { onProgress })
+        break
+      case 'retry-scenes':
+        result = await retrySceneFailures(region.id, { onProgress })
+        break
+      case 'add-scene':
+        result = await addCustomScene(region.id, action.scene)
+        break
+      case 'remove-scene':
+        result = await removeCustomScene(region.id, action.sceneId)
+        break
+      case 'verify-scene':
+        result = await switchAndVerifyScene(region.id, action.sceneId, { onProgress })
+        if (result.ok && result.workflow?.requiredComplete && !result.workflow.completedAt) {
+          result = await completeRegionWorkflow(region.id)
+        }
+        break
+      case 'set-optional':
+        result = await setOptionalStep(region.id, action.step, action.required)
+        break
+      case 'configure-panel':
+        result = await configurePanel(region.id, action.panel, { onProgress })
+        break
+      case 'verify-panel':
+        result = await verifyPanel(region.id, action.keyNo, { onProgress })
+        break
+      case 'configure-subscription':
+        result = await configureSubscription(region.id, { onProgress })
+        break
+      case 'sync-members':
+        result = await syncRegionMembers(region, cuDevices.value)
+        break
+      default:
+        return
+    }
+
+    if (result?.workflow) regionWorkflow.value = result.workflow
+    if (result?.ok) {
+      commitDrawerMessage(result.message || '操作完成')
+    } else {
+      validationMessages.value = [result?.message || '操作失败']
+      commitDrawerMessage(result?.message || '操作失败')
+    }
+  } catch (error) {
+    validationMessages.value = ['操作失败，请重试']
+    commitDrawerMessage('操作失败，请重试')
+  } finally {
+    workflowBusy.value = false
   }
-  draftState.value = upsertAreaGroup(draftState.value, {
-    ...group,
-    gatewayId: validation.gatewayId
-  })
-  validationMessages.value = []
-  commitDrawerMessage('已保存草稿')
-}
-
-function handleCreateDefaultScenes(region) {
-  draftState.value = {
-    ...draftState.value,
-    dirty: true,
-    scenes: [
-      ...draftState.value.scenes,
-      { id: `scene-${region.id}-on`, regionId: region.id, name: '全开', brightness: 100 },
-      { id: `scene-${region.id}-off`, regionId: region.id, name: '全关', brightness: 0 },
-      { id: `scene-${region.id}-saving`, regionId: region.id, name: '50% 节能', brightness: 50 }
-    ]
-  }
-  commitDrawerMessage('已保存草稿')
-}
-
-function handleCreateCustomScene(region) {
-  draftState.value = {
-    ...draftState.value,
-    dirty: true,
-    scenes: [
-      ...draftState.value.scenes,
-      { id: `scene-${region.id}-${Date.now()}`, regionId: region.id, name: '自定义场景', brightness: 80 }
-    ]
-  }
-  commitDrawerMessage('已保存草稿')
-}
-
-function handleSaveScene(payload) {
-  const region = payload.region
-  const scene = payload.scene || {}
-  const brightness = clampPercent(scene.brightness)
-  draftState.value = {
-    ...draftState.value,
-    dirty: true,
-    scenes: [
-      ...(draftState.value.scenes || []).filter((item) => item.id !== `scene-${region.id}-custom`),
-      {
-        id: `scene-${region.id}-custom`,
-        regionId: region.id,
-        name: scene.name || '自定义场景',
-        defaultScene: scene.defaultScene || 'on',
-        brightness,
-        colorTemperature: Number(scene.colorTemperature) || 4000
-      }
-    ]
-  }
-  commitDrawerMessage('已保存草稿')
-}
-
-function handleUseParamTemplate(region) {
-  upsertCuParamDraft(region, 'template')
-}
-
-function handleCustomParam(region) {
-  upsertCuParamDraft(region, 'custom')
 }
 
 function handleSaveCuParams(payload) {
@@ -3376,26 +3405,7 @@ function upsertCuParamDraft(region, mode, params = {}) {
       }
     ]
   }
-  commitDrawerMessage('已保存草稿')
-}
-
-function markDraftAction(message) {
-  draftState.value = {
-    ...draftState.value,
-    dirty: true
-  }
-  commitDrawerMessage(message)
-}
-
-function handleValidateDraft() {
-  validationMessages.value = validateDraftState(draftState.value, cuDevices.value)
-  configDrawerTab.value = 'validate'
-  commitDrawerMessage(validationMessages.value.length ? '校验失败' : '校验通过')
-}
-
-function handleMockTestAction(action) {
-  const result = mockControl(action)
-  commitDrawerMessage(result.ok ? '模拟测试通过' : '模拟测试失败')
+  commitDrawerMessage('已保存')
 }
 
 function handleSaveLocalDraft() {
@@ -3409,7 +3419,7 @@ function handleSaveLocalDraft() {
       dirty: false,
       currentDraftState: 'saved'
     }
-    commitDrawerMessage('已保存草稿')
+    commitDrawerMessage('已保存')
   } else {
     commitDrawerMessage('校验失败')
   }
@@ -3609,42 +3619,70 @@ function clampViewBox(viewBox) {
 
 function getRegionLabel(region) {
   if (!region.points.length) return { x: 0, y: 0 }
-  const bbox = getPointsBBox(region.points)
-  const padX = Math.max(10, bbox.width * 0.08)
-  const padY = Math.max(8, bbox.height * 0.14)
-  const candidates = [
-    { x: bbox.minX + bbox.width / 2, y: bbox.minY + padY },
-    { x: bbox.minX + padX, y: bbox.minY + padY },
-    { x: bbox.maxX - padX, y: bbox.minY + padY },
-    { x: bbox.minX + padX, y: bbox.minY + bbox.height / 2 },
-    { x: bbox.maxX - padX, y: bbox.minY + bbox.height / 2 },
-    { x: bbox.minX + bbox.width / 2, y: bbox.maxY - padY }
-  ].filter((point) => pointInPolygon(point, region.points))
-
-  const devices = [...cuDevices.value, ...gwDevices.value].filter((device) => isDeviceInRegion(region, device))
-  if (!candidates.length) return { x: bbox.minX + bbox.width / 2, y: bbox.minY + bbox.height / 2 }
-
-  return candidates
-    .map((point) => ({
-      point,
-      score: devices.reduce((minDistance, device) => Math.min(minDistance, getDistance(point, device)), Infinity)
-    }))
-    .sort((left, right) => right.score - left.score)[0].point
+  const shapeType = getRegionShapeType(region)
+  const geometry = getRegionGeometry(region)
+  if (shapeType === 'RECT') {
+    return { x: geometry.x + geometry.width / 2, y: geometry.y + geometry.height / 2 }
+  }
+  if (shapeType === 'CIRCLE') {
+    return { x: geometry.cx, y: geometry.cy }
+  }
+  return getPolygonCentroid(region.points)
 }
 
-function getRegionLabelHitBox(region) {
-  const label = getRegionLabel(region)
-  const codeFontSize = getRegionCodeFontSize()
+function getRegionLabelLayout(region) {
+  const center = getRegionLabel(region)
+  const titleFontSize = getRegionCodeFontSize()
   const badgeFontSize = getRegionBadgeFontSize()
-  const text = `${getRegionDisplayCode(region)}${region.memberIds.length}台`
-  const width = Math.max(44, text.length * codeFontSize * 0.46)
-  const height = codeFontSize + badgeFontSize + 12
+  const horizontalPadding = getStableSvgFontSize(18, 3.4, 10)
+  const verticalPadding = getStableSvgFontSize(6, 1.4, 4)
+  const lineGap = getStableSvgFontSize(3, 0.6, 2)
+  const titleWidth = estimateRegionLabelWidth(getRegionDisplayCode(region), titleFontSize)
+  const badgeWidth = estimateRegionLabelWidth(`${region.memberIds.length}台`, badgeFontSize)
+  const width = Math.max(titleWidth, badgeWidth) + horizontalPadding * 2
+  const height = verticalPadding * 2 + titleFontSize + badgeFontSize + lineGap
+  const y = center.y - height / 2
   return {
-    x: label.x - width / 2,
-    y: label.y - codeFontSize - 10,
+    x: center.x - width / 2,
+    y,
     width,
-    height
+    height,
+    radius: getStableSvgFontSize(6, 1.4, 4),
+    titleY: y + verticalPadding + titleFontSize * 0.82,
+    badgeY: y + verticalPadding + titleFontSize + lineGap + badgeFontSize * 0.82
   }
+}
+
+function estimateRegionLabelWidth(value, fontSize) {
+  return Array.from(String(value || '')).reduce((width, character) => (
+    width + fontSize * (/^[\x20-\x7e]$/.test(character) ? 0.64 : 1)
+  ), 0)
+}
+
+function getPolygonCentroid(points) {
+  let areaFactor = 0
+  let centroidX = 0
+  let centroidY = 0
+  for (let index = 0; index < points.length; index += 1) {
+    const current = points[index]
+    const next = points[(index + 1) % points.length]
+    const cross = current.x * next.y - next.x * current.y
+    areaFactor += cross
+    centroidX += (current.x + next.x) * cross
+    centroidY += (current.y + next.y) * cross
+  }
+  if (Math.abs(areaFactor) > 1e-6) {
+    return {
+      x: centroidX / (3 * areaFactor),
+      y: centroidY / (3 * areaFactor)
+    }
+  }
+  const bbox = getPointsBBox(points)
+  return { x: bbox.minX + bbox.width / 2, y: bbox.minY + bbox.height / 2 }
+}
+
+function isRegionLabelHidden(region) {
+  return selectedInteractionRegion.value?.id === region.id || hoveredRegionId.value === region.id
 }
 
 function getRegionDisplayCode(region) {
@@ -3769,11 +3807,11 @@ function getDeviceCodeFontSize() {
 }
 
 function getRegionCodeFontSize() {
-  return getStableSvgFontSize(15, 3.2, 9)
+  return getStableSvgFontSize(19, 4, 11)
 }
 
 function getRegionBadgeFontSize() {
-  return getStableSvgFontSize(12, 2.8, 8)
+  return getStableSvgFontSize(14, 3.2, 9.2)
 }
 
 function getRegionTextStrokeWidth() {
@@ -4155,58 +4193,73 @@ function clamp(value, min, max) {
   opacity: 0.24;
 }
 
-.region-label-group {
+.region-label-layer,
+.region-label-node {
   pointer-events: none;
 }
 
+.region-label-bg {
+  fill: rgba(237, 242, 246, 0.94);
+  stroke: rgba(116, 141, 158, 0.78);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 2px 3px rgba(48, 72, 89, 0.22));
+}
+
 .region-label {
-  fill: #ffffff;
+  fill: #17354c;
   text-anchor: middle;
-  font-weight: 700;
+  font-weight: 750;
   paint-order: stroke;
-  stroke: rgba(44, 54, 66, 0.48);
+  stroke: rgba(255, 255, 255, 0.64);
   stroke-linejoin: round;
 }
 
 .region-badge {
-  fill: rgba(255, 255, 255, 0.92);
+  fill: #3d7180;
   text-anchor: middle;
-  font-weight: 600;
+  font-weight: 650;
   paint-order: stroke;
-  stroke: rgba(44, 54, 66, 0.42);
+  stroke: rgba(255, 255, 255, 0.58);
   pointer-events: none;
 }
 
-.region-label-hit-layer {
+.map-region-hint {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 12;
+  max-width: min(48%, 420px);
+  overflow: hidden;
+  padding: 7px 12px;
+  border: 1px solid rgba(77, 112, 143, 0.26);
+  border-radius: 5px;
+  color: #eaf3f9;
+  background: rgba(10, 26, 42, 0.82);
+  box-shadow: 0 5px 14px rgba(3, 12, 24, 0.16);
+  backdrop-filter: blur(8px);
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   pointer-events: none;
+  transform: translateX(-50%);
+  transition: top 0.18s ease;
 }
 
-.region-label-hit-layer.disabled {
-  display: none;
+.map-region-hint.operation-offset {
+  top: 58px;
 }
 
-.region-label-hit-node {
-  cursor: pointer;
-  pointer-events: all;
+.region-hint-fade-enter-active,
+.region-hint-fade-leave-active {
+  transition: opacity 0.14s ease, transform 0.14s ease;
 }
 
-.region-label-hit-node.blocked {
-  pointer-events: none;
-}
-
-.region-label-hit-box {
-  fill: transparent;
-  stroke: transparent;
-}
-
-.region-label-hit-node:hover .region-label-hit-box {
-  fill: rgba(53, 246, 212, 0.1);
-  stroke: rgba(53, 246, 212, 0.34);
-  vector-effect: non-scaling-stroke;
-}
-
-.region-label-hit-text {
-  pointer-events: none;
+.region-hint-fade-enter-from,
+.region-hint-fade-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -4px);
 }
 
 .region-edit-handles {
@@ -4243,13 +4296,19 @@ function clamp(value, min, max) {
 .device-icon.active {
   filter:
     drop-shadow(0 2px 3px rgba(4, 12, 20, 0.34))
-    drop-shadow(0 0 7px rgba(255, 204, 88, 0.68));
+    drop-shadow(0 0 4px rgba(255, 204, 88, 0.62));
+}
+
+.device-node-cu .device-icon.active {
+  filter:
+    drop-shadow(0 2px 3px rgba(4, 12, 20, 0.34))
+    drop-shadow(0 0 3px rgba(255, 204, 88, 0.62));
 }
 
 .device-icon-outline {
   fill: none;
   stroke: rgba(255, 204, 88, 0.92);
-  stroke-width: 1.4;
+  stroke-width: 1.1;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
@@ -4268,22 +4327,11 @@ function clamp(value, min, max) {
   opacity: 0.16;
 }
 
-.focus-mask-layer {
-  pointer-events: none;
-}
-
 .focus-dim {
-  fill: #17212d;
-  opacity: 0.3;
-}
-
-.focus-intercept-layer {
-  pointer-events: none;
-}
-
-.focus-exit-hit {
-  fill: rgba(255, 255, 255, 0.01);
+  fill: #111b27;
+  opacity: 0.48;
   pointer-events: all;
+  cursor: zoom-out;
 }
 
 .drawing-preview {
@@ -5243,6 +5291,51 @@ function clamp(value, min, max) {
   opacity: 0;
   transform: translateX(34px) scale(0.985);
 }
+
+/* System theme alignment; map artwork and device assets remain unchanged. */
+.tree-node { color: var(--text-secondary); background: rgba(7, 24, 42, 0.56); }
+.tree-node:hover { border-color: var(--border-default); background: var(--control-bg-hover); color: var(--text-primary); }
+.tree-item.active > .tree-node { border-color: var(--border-active); background: linear-gradient(90deg, rgba(77, 159, 255, 0.16), rgba(85, 216, 255, 0.08)); color: var(--accent-cyan); box-shadow: inset 0 0 0 1px var(--info-soft); }
+.tree-item.disabled > .tree-node, .tree-item.disabled > .tree-node:hover { color: var(--text-disabled); background: rgba(7, 24, 42, 0.42); }
+.node-icon, .summary-chip { border-color: var(--border-subtle); }
+.summary-chip { background: linear-gradient(180deg, var(--card-bg-soft), var(--control-bg)); }
+.summary-label { color: var(--text-tertiary); }
+.summary-chip strong { color: var(--accent-cyan); }
+.zoom-chip { background: var(--info-soft); color: var(--accent-cyan); }
+.toolbar-btn, .operation-btn, .dock-icon-btn, .dock-action-btn { background: var(--control-bg); border-color: var(--border-subtle); color: var(--text-secondary); }
+.toolbar-btn:hover, .toolbar-btn.active, .operation-btn:hover, .dock-icon-btn:hover, .dock-action-btn:hover { color: var(--accent-cyan); border-color: var(--border-active); background: var(--control-bg-hover); box-shadow: 0 0 14px rgba(85, 216, 255, 0.10); }
+.map-legend, .map-minimap, .map-operation-bar, .map-control-dock { border-color: var(--border-subtle); background: rgba(7, 24, 42, 0.86); box-shadow: var(--shadow-panel); }
+.legend-item, .operation-title, .status-text, .map-shortcut-hint { color: var(--text-secondary); }
+.legend-dot.cu { background: var(--success); box-shadow: 0 0 10px rgba(94, 231, 154, 0.34); }
+.legend-dot.gw { background: var(--accent-blue); box-shadow: 0 0 10px rgba(77, 159, 255, 0.34); }
+.legend-dot.area { background: var(--warning); box-shadow: 0 0 10px rgba(255, 209, 102, 0.34); }
+.status-feedback { color: var(--accent-cyan); }
+.map-shortcut-hint { border-color: var(--border-subtle); background: rgba(7, 24, 42, 0.78); }
+.map-error { border-color: var(--danger-border); background: rgba(63, 15, 27, 0.92); color: #ffdfe4; }
+.debug-panel { border-color: var(--warning-border); background: rgba(17, 25, 39, 0.94); }
+.debug-title, .operation-btn.danger { color: var(--warning); }
+.control-drawer, .control-drawer.config-side-drawer { border-color: var(--border-default); background: linear-gradient(180deg, rgba(10, 29, 51, 0.99), rgba(4, 12, 23, 0.99)); box-shadow: var(--shadow-elevated); }
+.control-drawer.config-side-drawer .drawer-section, .drawer-section, .gateway-device-summary, .metric-card, .time-card, .status-card, .table-card { border-color: var(--border-subtle); background: rgba(7, 24, 42, 0.72); }
+.device-config-tabs, .drawer-head, .gateway-device-head, .table-head { border-color: var(--border-subtle); }
+.device-config-tabs { background: rgba(4, 17, 31, 0.82); }
+.device-config-tab { color: var(--text-tertiary); }
+.device-config-tab.active { color: var(--accent-cyan); background: var(--info-soft); }
+.device-config-tab.active::after { background: var(--accent-cyan); }
+.gateway-device-head, .drawer-title, .section-head, .time-title, .status-row strong, .table-head { color: var(--text-strong); }
+.gateway-device-box, .metric-input-wrap, .time-input-wrap { background: var(--control-bg); }
+.gateway-device-row, .status-row, .table-row { color: var(--text-secondary); }
+.gateway-device-row + .gateway-device-row, .table-row + .table-row { border-color: rgba(105, 176, 235, 0.10); }
+.gateway-device-row strong, .metric-input, .time-input { color: var(--accent-cyan); }
+.drawer-icon, .drawer-close { border-color: var(--border-default); background: var(--info-soft); color: var(--accent-cyan); }
+.drawer-subtitle, .section-desc, .time-copy, .table-empty { color: var(--text-tertiary); }
+.online-badge { color: var(--success); background: var(--success-soft); }
+.online-badge.offline { color: var(--offline); background: var(--offline-soft); }
+.section-tag { background: var(--info-soft); color: var(--text-secondary); }
+.action-btn, .scene-tab { border-color: var(--border-subtle); background: var(--control-bg); color: var(--text-secondary); }
+.action-btn:hover, .action-btn.active, .scene-tab.active { color: var(--accent-cyan); border-color: var(--border-active); background: var(--info-soft); box-shadow: 0 0 16px rgba(85, 216, 255, 0.10); }
+.metric-input-wrap.invalid, .time-input-wrap.invalid { border-color: var(--danger-border); }
+.metric-error { color: var(--danger); }
+.footer-btn { border-color: var(--border-active); background: linear-gradient(90deg, rgba(77, 159, 255, 0.18), rgba(85, 216, 255, 0.18)); color: var(--text-primary); }
 
 @media (max-width: 1360px) {
   .page-content {

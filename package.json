@@ -1,7 +1,7 @@
 {
   "name": "moutai-lighting",
   "version": "1.0.0",
-  "description": "茅台物联网照明智慧系统",
+  "description": "开利物联网照明智慧系统",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,5 +17,20 @@
     "@vitejs/plugin-vue": "^5.0.4",
     "vite": "^5.2.0",
     "xlsx": "^0.18.5"
-  }
+  },
+  "main": "vite.config.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kli625131-Ken/lontri-kaili-project.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kli625131-Ken/lontri-kaili-project/issues"
+  },
+  "homepage": "https://github.com/kli625131-Ken/lontri-kaili-project#readme"
 }

@@ -886,6 +886,25 @@ const simulateLinkage = () => {
   background: rgba(255, 140, 106, 0.08);
 }
 
+/* System theme alignment; scheduling and linkage logic remain unchanged. */
+.system-item, .schedule-item, .scene-box, .action-chip, .toggle-pill { background: var(--control-bg); border-color: var(--border-subtle); color: var(--text-primary); }
+.system-item.active, .schedule-item.active, .scene-box.active { border-color: var(--border-active); background: linear-gradient(180deg, var(--info-soft), var(--control-bg)); box-shadow: 0 0 0 1px rgba(85, 216, 255, 0.08), var(--glow-soft); }
+.system-name, .permission-area, .schedule-name, .scene-name, .record-event, .mini-kpi strong, .logic-kpi strong, .queue-main, .field label { color: var(--text-strong); }
+.system-meta, .system-foot, .permission-scene, .permission-foot, .schedule-detail, .schedule-foot, .scene-desc, .scene-values, .queue-detail, .record-detail, .field p, .mini-kpi span, .logic-kpi span, .queue-title, .timeline-head, .timeline-label span { color: var(--text-secondary); }
+.system-status, .record-status { border-color: var(--border-subtle); }
+.system-status.active, .record-status.success { color: var(--success); background: var(--success-soft); }
+.system-status.standby, .record-status.pending { color: var(--warning); background: var(--warning-soft); }
+.record-status.warning { color: var(--accent-orange); background: rgba(255, 155, 74, 0.13); }
+.mini-kpi, .logic-kpi, .queue-box, .permission-item, .record-item, .timeline-card, .field { border-color: var(--border-subtle); background: rgba(7, 24, 42, 0.72); }
+.toggle-pill, .action-chip, .nav-btn, .secondary-btn { background: var(--control-bg); color: var(--text-secondary); border-color: var(--border-subtle); }
+.toggle-pill.active, .action-chip.active { color: var(--accent-cyan); border-color: var(--border-active); background: var(--info-soft); }
+.timeline-track { background: var(--offline-soft); border-color: var(--border-subtle); }
+.timeline-bar { color: var(--bg-page-deep); }
+.timeline-bar.day { background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green)); }
+.timeline-bar.swing { background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan)); }
+.timeline-bar.night { background: linear-gradient(90deg, var(--accent-purple), var(--accent-blue)); }
+.primary-btn { color: var(--bg-page-deep); background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan)); }
+
 @media (max-width: 1440px) {
   .linkage-layout {
     grid-template-columns: 300px minmax(0, 1fr) 320px;

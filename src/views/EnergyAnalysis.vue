@@ -104,21 +104,24 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import DataCard from '../components/DataCard.vue'
 
 const ENERGY_ANALYSIS_COLORS = {
-  trend: '#78E8FF',
-  trendFade: 'rgba(120, 232, 255, 0)',
-  rank: '#69E0FF',
-  rankAccent: '#7FB9FF',
-  compare: '#58EFDB',
-  compareAccent: '#73F0FF',
-  compareBase: 'rgba(191, 214, 255, 0.42)',
-  progress: '#9FD8FF',
-  progressAccent: '#D6E8FF',
-  axis: 'rgba(234, 243, 252, 0.68)',
-  axisLine: 'rgba(193, 213, 231, 0.22)',
-  splitLine: 'rgba(209, 224, 238, 0.08)',
-  control: '#78E8FF',
-  positive: '#8EE88B',
-  negative: '#FF7B8A'
+  trend: '#55d8ff',
+  trendFade: 'rgba(85, 216, 255, 0)',
+  rank: '#55d8ff',
+  rankAccent: '#4d9fff',
+  compare: '#5ee79a',
+  compareAccent: '#45dfcf',
+  compareBase: 'rgba(113, 140, 166, 0.46)',
+  progress: '#55d8ff',
+  progressAccent: '#4d9fff',
+  axis: '#8fa8c1',
+  axisLine: 'rgba(105, 176, 235, 0.24)',
+  splitLine: 'rgba(105, 176, 235, 0.10)',
+  tooltipBg: 'rgba(7, 24, 42, 0.96)',
+  tooltipBorder: 'rgba(85, 216, 255, 0.34)',
+  tooltipText: '#e7f2ff',
+  control: '#55d8ff',
+  positive: '#5ee79a',
+  negative: '#ff6678'
 }
 
 const filterDate = ref('2026-02-28 16:00:00')
@@ -160,6 +163,7 @@ const initCharts = () => {
 
   trendChartInstance = window.echarts.init(trendChart.value)
   trendChartInstance.setOption({
+    tooltip: { trigger: 'axis', backgroundColor: ENERGY_ANALYSIS_COLORS.tooltipBg, borderColor: ENERGY_ANALYSIS_COLORS.tooltipBorder, textStyle: { color: ENERGY_ANALYSIS_COLORS.tooltipText } },
     grid: { left: '3%', right: '4%', bottom: '2%', top: '8%', containLabel: true },
     xAxis: {
       type: 'category',
@@ -184,7 +188,7 @@ const initCharts = () => {
         emphasis: {
           itemStyle: {
             color: ENERGY_ANALYSIS_COLORS.trend,
-            borderColor: '#F3F9FF',
+            borderColor: '#f4f8ff',
             borderWidth: 2
           }
         },
@@ -196,7 +200,7 @@ const initCharts = () => {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(120, 232, 255, 0.32)' },
+              { offset: 0, color: 'rgba(85, 216, 255, 0.30)' },
               { offset: 1, color: ENERGY_ANALYSIS_COLORS.trendFade }
             ]
           }
@@ -207,6 +211,7 @@ const initCharts = () => {
 
   compareChartInstance = window.echarts.init(compareChart.value)
   compareChartInstance.setOption({
+    tooltip: { trigger: 'axis', backgroundColor: ENERGY_ANALYSIS_COLORS.tooltipBg, borderColor: ENERGY_ANALYSIS_COLORS.tooltipBorder, textStyle: { color: ENERGY_ANALYSIS_COLORS.tooltipText } },
     grid: { left: '3%', right: '4%', bottom: '2%', top: '8%', containLabel: true },
     xAxis: {
       type: 'category',
@@ -404,4 +409,28 @@ onUnmounted(() => {
   color: #69E0FF;
   font-family: var(--font-num);
 }
+
+/* Unified deep-sea theme: color-only overrides. */
+.filter-section { border-bottom-color: var(--border-subtle); }
+.filter-title { color: var(--text-strong); }
+.filter-icon { background: var(--info-soft); color: var(--accent-cyan); }
+.date-input { background: var(--control-bg); border-color: var(--border-default); color: var(--text-secondary); }
+.calendar-icon { color: var(--accent-cyan); }
+.type-btn { background: var(--control-bg); border-color: var(--border-subtle); color: var(--text-tertiary); }
+.type-btn:hover { background: var(--control-bg-hover); border-color: var(--border-default); color: var(--text-primary); }
+.type-btn.active { background: var(--info-soft); border-color: var(--border-active); color: var(--accent-cyan); }
+.tree-node { color: var(--text-secondary); }
+.tree-node:hover { background: var(--info-soft); }
+.tree-item.active > .tree-node { background: rgba(77, 159, 255, 0.15); color: var(--accent-cyan); }
+.arrow, .unit-label { color: var(--text-muted); }
+.kpi-card { background: linear-gradient(180deg, rgba(85, 216, 255, 0.07), var(--card-bg-strong)); border-color: var(--border-default); box-shadow: inset 0 1px 0 var(--inner-highlight), var(--shadow-panel); }
+.kpi-label { color: var(--text-secondary); }
+.kpi-icon { background: var(--info-soft); color: var(--accent-cyan); }
+.kpi-value { color: var(--text-primary); }
+.kpi-trend.up { color: var(--danger); }
+.kpi-trend.down { color: var(--success); }
+.kpi-sub { color: var(--text-tertiary); }
+.kpi-progress, .rank-bar-wrapper { background: var(--offline-soft); }
+.rank-name { color: var(--text-secondary); }
+.rank-value { color: var(--accent-cyan); }
 </style>

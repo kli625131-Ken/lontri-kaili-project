@@ -2,12 +2,8 @@
   <header class="header">
     <div class="header-left">
       <div class="logo">
-        <svg class="logo-icon" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-          <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <circle cx="12" cy="12" r="3" fill="currentColor"/>
-        </svg>
-        <span class="logo-text">茅台物联网照明智慧系统</span>
+        <img class="logo-icon" :src="carrierLogo" alt="Carrier" />
+        <span class="logo-text">开利物联网照明智慧系统</span>
       </div>
     </div>
     <nav class="header-nav">
@@ -39,6 +35,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import carrierLogo from '../assets/images/logo.png'
 
 const navItems = [
   { path: '/dashboard', title: '系统仪表盘' },
@@ -82,13 +79,13 @@ onUnmounted(() => {
   height: 74px;
   padding: 0 24px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 22%),
-    linear-gradient(180deg, rgba(28, 49, 73, 0.82) 0%, rgba(21, 39, 61, 0.72) 100%);
-  border-bottom: 1px solid rgba(180, 214, 235, 0.18);
+    linear-gradient(180deg, var(--inner-highlight), transparent 24%),
+    linear-gradient(180deg, rgba(10, 29, 51, 0.97), rgba(5, 17, 31, 0.94));
+  border-bottom: 1px solid var(--border-subtle);
   box-shadow:
-    0 12px 28px rgba(5, 13, 24, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    inset 0 -1px 0 rgba(120, 232, 255, 0.08);
+    0 12px 28px rgba(0, 6, 16, 0.28),
+    inset 0 1px 0 var(--inner-highlight),
+    inset 0 -1px 0 rgba(85, 216, 255, 0.08);
   backdrop-filter: blur(18px);
 }
 
@@ -97,7 +94,7 @@ onUnmounted(() => {
   position: absolute;
   inset: 0 0 auto 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), rgba(120, 232, 255, 0.45), transparent);
+  background: linear-gradient(90deg, transparent, rgba(85, 216, 255, 0.46), rgba(77, 159, 255, 0.26), transparent);
 }
 
 .header::after {
@@ -108,7 +105,7 @@ onUnmounted(() => {
   transform: translateX(-50%);
   width: 420px;
   height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), rgba(88, 239, 219, 0.62), rgba(255, 203, 114, 0.28), transparent);
+  background: linear-gradient(90deg, transparent, rgba(85, 216, 255, 0.14), rgba(85, 216, 255, 0.52), rgba(255, 209, 102, 0.20), transparent);
 }
 
 .header-left { flex: 0 0 auto; }
@@ -120,23 +117,24 @@ onUnmounted(() => {
   padding: 10px 18px 10px 14px;
   border-radius: 999px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04)),
-    rgba(26, 46, 70, 0.62);
-  border: 1px solid rgba(184, 215, 235, 0.2);
+    linear-gradient(180deg, var(--inner-highlight), transparent),
+    rgba(10, 29, 51, 0.78);
+  border: 1px solid var(--border-subtle);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 10px 24px rgba(5, 13, 24, 0.1);
+    inset 0 1px 0 var(--inner-highlight),
+    0 10px 24px rgba(0, 6, 16, 0.18);
 }
 
 .logo-icon {
-  width: 36px;
+  width: 72px;
   height: 36px;
-  color: var(--accent-green);
-  filter: drop-shadow(0 0 12px rgba(142, 232, 139, 0.22));
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 0 10px rgba(85, 216, 255, 0.16));
 }
 
 .logo-text {
-  color: var(--text-1);
+  color: var(--text-primary);
   font-size: 22px;
   font-weight: 600;
   letter-spacing: 2px;
@@ -161,27 +159,26 @@ onUnmounted(() => {
   font-weight: 500;
   white-space: nowrap;
   border-radius: 999px;
-  border: 1px solid rgba(184, 215, 235, 0.08);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03)),
-    rgba(28, 48, 72, 0.42);
+  border: 1px solid transparent;
+  background: rgba(10, 29, 51, 0.42);
   overflow: hidden;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
 
 .nav-item::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(120, 232, 255, 0.08) 42%, transparent 78%);
+  background: linear-gradient(180deg, rgba(85, 216, 255, 0.12), rgba(77, 159, 255, 0.05) 64%, transparent);
   opacity: 0;
   transition: opacity var(--dur-mid) var(--ease-out);
 }
 
 .nav-item:hover {
-  color: var(--text-1);
-  border-color: rgba(184, 215, 235, 0.26);
-  box-shadow: var(--glow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+  background: var(--info-soft);
+  box-shadow: inset 0 1px 0 var(--inner-highlight);
 }
 
 .nav-item:hover::before,
@@ -190,12 +187,13 @@ onUnmounted(() => {
 }
 
 .nav-item.active {
-  color: #102033;
-  border-color: rgba(255, 232, 177, 0.48);
-  background: linear-gradient(135deg, rgba(255, 203, 114, 0.96), rgba(120, 232, 255, 0.88));
+  color: var(--text-primary);
+  border-color: var(--border-active);
+  background: linear-gradient(135deg, rgba(77, 159, 255, 0.34), rgba(85, 216, 255, 0.20));
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.16),
-    0 10px 20px rgba(5, 13, 24, 0.12);
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 8px 20px rgba(0, 9, 22, 0.24),
+    0 0 18px rgba(85, 216, 255, 0.10);
 }
 
 .nav-item.active::after {
@@ -205,7 +203,7 @@ onUnmounted(() => {
   right: 20%;
   bottom: 4px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.92), transparent);
+  background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
 }
 
 .header-right {
@@ -223,18 +221,18 @@ onUnmounted(() => {
   line-height: 1.4;
   border-radius: 18px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.03)),
-    rgba(27, 47, 70, 0.52);
-  border: 1px solid rgba(184, 215, 235, 0.18);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    linear-gradient(180deg, var(--inner-highlight), transparent),
+    var(--control-bg);
+  border: 1px solid var(--border-subtle);
+  box-shadow: inset 0 1px 0 var(--inner-highlight);
 }
-.date { font-size: 13px; color: var(--text-3); }
+.date { font-size: 13px; color: var(--text-tertiary); }
 .time {
   font-size: 16px;
   font-weight: 600;
   color: var(--accent-cyan);
   font-family: var(--font-num);
-  text-shadow: 0 0 14px rgba(120, 232, 255, 0.16);
+  text-shadow: 0 0 14px rgba(85, 216, 255, 0.18);
 }
 
 .weather {
@@ -244,10 +242,10 @@ onUnmounted(() => {
   padding: 8px 14px;
   border-radius: 999px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04)),
-    rgba(27, 47, 70, 0.48);
-  border: 1px solid rgba(184, 215, 235, 0.18);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    linear-gradient(180deg, var(--inner-highlight), transparent),
+    var(--control-bg);
+  border: 1px solid var(--border-subtle);
+  box-shadow: inset 0 1px 0 var(--inner-highlight);
 }
 
 .user {
@@ -257,10 +255,10 @@ onUnmounted(() => {
   padding: 7px 10px 7px 14px;
   border-radius: 999px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03)),
-    rgba(27, 47, 70, 0.48);
-  border: 1px solid rgba(184, 215, 235, 0.16);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    linear-gradient(180deg, var(--inner-highlight), transparent),
+    var(--control-bg);
+  border: 1px solid var(--border-subtle);
+  box-shadow: inset 0 1px 0 var(--inner-highlight);
 }
 
 .user-avatar {
@@ -271,9 +269,9 @@ onUnmounted(() => {
   justify-content: center;
   border-radius: 50%;
   color: var(--accent-green);
-  background: linear-gradient(180deg, rgba(142, 232, 139, 0.22), rgba(120, 232, 255, 0.08));
-  border: 1px solid rgba(184, 215, 235, 0.2);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), var(--glow-soft);
+  background: linear-gradient(180deg, var(--success-soft), var(--info-soft));
+  border: 1px solid var(--success-border);
+  box-shadow: inset 0 1px 0 var(--inner-highlight), var(--glow-soft);
 }
 
 .user-avatar svg { width: 20px; height: 20px; }

@@ -295,4 +295,17 @@ function selectTool(tool) {
   color: rgba(211, 225, 239, 0.56);
   font-size: 11px;
 }
+
+/* Shared map control palette. */
+.toolbar-rail, .toolbar-panel { border-color: var(--border-default); background: rgba(7, 24, 42, 0.95); box-shadow: var(--shadow-panel); }
+.tool-btn { color: var(--text-tertiary); }
+.tool-btn:hover, .tool-btn.active { color: var(--accent-cyan); background: var(--info-soft); }
+.expand-btn { border-bottom-color: var(--border-subtle); }
+.tool-btn:focus-visible, .panel-tool:focus-visible, .group-title:focus-visible { outline-color: var(--border-active); }
+.group-title { border-color: var(--border-subtle); background: var(--control-bg); color: var(--text-secondary); }
+.group-title.active { color: var(--accent-cyan); border-color: var(--border-active); background: var(--info-soft); }
+.panel-tool { background: rgba(10, 29, 51, 0.56); color: var(--text-secondary); }
+.panel-tool:hover, .panel-tool.active { color: var(--text-primary); border-color: var(--border-active); background: var(--info-soft); }
+.panel-icon { background: var(--info-soft); color: var(--accent-cyan); }
+.panel-copy small { color: var(--text-tertiary); }
 </style>

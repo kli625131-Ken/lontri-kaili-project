@@ -80,15 +80,15 @@
               <div class="event-label">今日事件</div>
             </div>
             <div class="event-item">
-              <div class="event-value" style="color: #00d4aa">3</div>
+              <div class="event-value" style="color: var(--success)">3</div>
               <div class="event-label">已处理</div>
             </div>
             <div class="event-item">
-              <div class="event-value" style="color: #ffd700">2</div>
+              <div class="event-value" style="color: var(--warning)">2</div>
               <div class="event-label">待处理</div>
             </div>
             <div class="event-item">
-              <div class="event-value" style="color: #00a8e8">18</div>
+              <div class="event-value" style="color: var(--accent-blue)">18</div>
               <div class="event-label">总事件</div>
             </div>
           </div>
@@ -217,6 +217,7 @@ const initCharts = () => {
   if (!window.echarts) return;
   alarmChartInstance = window.echarts.init(alarmChart.value);
   alarmChartInstance.setOption({
+    tooltip: { trigger: "axis", backgroundColor: "rgba(7,24,42,0.96)", borderColor: "rgba(85,216,255,0.34)", textStyle: { color: "#e7f2ff" } },
     grid: {
       left: "3%",
       right: "4%",
@@ -227,20 +228,20 @@ const initCharts = () => {
     xAxis: {
       type: "category",
       data: ["周一", "周二", "周三", "周四", "周五", "周六", "周日"],
-      axisLine: { lineStyle: { color: "rgba(255,255,255,0.1)" } },
-      axisLabel: { color: "rgba(255,255,255,0.5)", fontSize: 10 },
+      axisLine: { lineStyle: { color: "rgba(105,176,235,0.24)" } },
+      axisLabel: { color: "#8fa8c1", fontSize: 10 },
     },
     yAxis: {
       type: "value",
       axisLine: { show: false },
-      splitLine: { lineStyle: { color: "rgba(255,255,255,0.05)" } },
-      axisLabel: { color: "rgba(255,255,255,0.5)", fontSize: 10 },
+      splitLine: { lineStyle: { color: "rgba(105,176,235,0.10)" } },
+      axisLabel: { color: "#8fa8c1", fontSize: 10 },
     },
     series: [
       {
         type: "bar",
         data: [5, 3, 8, 4, 6, 2, 3],
-        itemStyle: { color: "#00d4aa" },
+        itemStyle: { color: "#55d8ff" },
         barWidth: "50%",
       },
     ],
@@ -250,6 +251,9 @@ const initCharts = () => {
     tooltip: {
       trigger: "item",
       formatter: "{a} <br/>{b}: {c} ({d}%)",
+      backgroundColor: "rgba(7,24,42,0.96)",
+      borderColor: "rgba(85,216,255,0.34)",
+      textStyle: { color: "#e7f2ff" },
     },
     series: [
       {
@@ -260,13 +264,13 @@ const initCharts = () => {
         avoidLabelOverlap: false,
         itemStyle: {
           borderRadius: 8, // 扇形圆角，更柔和
-          borderColor: "#0f172a",
+          borderColor: "#06111f",
           borderWidth: 2,
         },
         label: {
           show: true,
           fontSize: 16,
-          color: "#ffffff",
+          color: "#c1d3e7",
           formatter: "{b}\n{c}次({d}%)", // 标签格式：名称+次数+百分比
         },
         labelLine: {
@@ -274,7 +278,7 @@ const initCharts = () => {
           length: 5, // 标签线：延长
           length2: 15, // 标签线：延长
           lineStyle: {
-            color: "#94a3b8",
+            color: "#6e879f",
             type: "dashed", // 虚线标签线，匹配参考效果
           },
         },
@@ -285,22 +289,22 @@ const initCharts = () => {
             name: "GW",
             selected: true, // 数值最大项突出
             selectedOffset: 25, // 增大偏移量，适配玫瑰图突出效果
-            itemStyle: { color: "#22d3ee" },
+            itemStyle: { color: "#55d8ff" },
           },
           {
             value: 25,
             name: "CU",
-            itemStyle: { color: "#fde047" },
+            itemStyle: { color: "#ffd166" },
           },
           {
             value: 22,
             name: "SCU",
-            itemStyle: { color: "#fb923c" },
+            itemStyle: { color: "#ff9b4a" },
           },
           {
             value: 18,
             name: "OCSR",
-            itemStyle: { color: "#3b82f6" },
+            itemStyle: { color: "#4d9fff" },
           },
         ],
       },
@@ -308,12 +312,13 @@ const initCharts = () => {
   });
   processChartInstance = window.echarts.init(processChart.value);
   processChartInstance.setOption({
+    tooltip: { trigger: "item", backgroundColor: "rgba(7,24,42,0.96)", borderColor: "rgba(85,216,255,0.34)", textStyle: { color: "#e7f2ff" } },
     legend: {
       left: "center",
       top: "10%",
       itemGap: 40, // 图例间距
       data: ["待处理", "处理中", "已处理"],
-      textStyle: { color: "rgba(255,255,255,0.9)", fontSize: 12 },
+      textStyle: { color: "#c1d3e7", fontSize: 12 },
       bottom: 0,
       itemWidth: 10,
       itemHeight: 10,
@@ -566,4 +571,27 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
 }
+
+/* Unified deep-sea theme: color-only overrides. */
+.search-input { background: var(--control-bg); border-color: var(--border-default); color: var(--text-secondary); }
+.search-input::placeholder { color: var(--text-muted); }
+.search-btn { background: var(--info-soft); border-color: var(--border-active); color: var(--accent-cyan); }
+.search-btn:hover { background: rgba(85, 216, 255, 0.18); }
+.device-table { border-color: var(--border-subtle); background: rgba(7, 24, 42, 0.34); }
+.table-header { background: rgba(77, 159, 255, 0.11); }
+.th { color: var(--text-strong); }
+.table-row { border-bottom-color: rgba(105, 176, 235, 0.11); }
+.table-row:hover { background: rgba(85, 216, 255, 0.055); }
+.td { color: var(--text-secondary); }
+.status-badge.normal { background: var(--success-soft); color: var(--success); }
+.status-badge.abnormal { background: var(--danger-soft); color: var(--danger); }
+.pagination { border-top-color: var(--border-subtle); }
+.page-info { color: var(--text-tertiary); }
+.page-btn { background: var(--control-bg); border-color: var(--border-subtle); color: var(--text-secondary); }
+.page-btn:hover:not(:disabled) { border-color: var(--border-active); color: var(--accent-cyan); }
+.page-btn:disabled { color: var(--text-disabled); }
+.page-num { color: var(--text-primary); }
+.event-item { background: rgba(7, 24, 42, 0.72); border: 1px solid var(--border-subtle); }
+.event-value { color: var(--text-primary); }
+.event-label { color: var(--text-tertiary); }
 </style>
