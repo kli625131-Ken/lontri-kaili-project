@@ -63,10 +63,6 @@
           </div>
         </div>
 
-        <div class="active-filter-summary">
-          <span>当前分析范围</span>
-          <strong>{{ filterSummary }}</strong>
-        </div>
       </DataCard>
 
       <div class="right-section">
@@ -93,69 +89,60 @@
           </div>
         </div>
 
-        <DataCard title="能耗趋势曲线" class="trend-card">
-          <template #header-extra><span class="unit-label">单位: kWh</span></template>
-          <div class="module-context">
-            <span>{{ filterSummary }}</span>
-            <span class="context-tag">{{ trendGranularityLabel }}</span>
-          </div>
+        <DataCard title="能耗趋势曲线" class="trend-card module-card">
+          <template #header-extra>
+            <div class="module-header-extra">
+              <span class="filter-chip area-chip" :title="areaRangeLabel">{{ areaTagLabel }}</span>
+              <span class="filter-chip">{{ selectedDeviceType?.label || '--' }}</span>
+              <span class="filter-chip time-chip" :title="timeRangeLabel">{{ timeRangeTagLabel }}</span>
+              <span class="filter-chip granularity-chip">{{ trendGranularityLabel }}</span>
+              <span class="unit-label">单位: kWh</span>
+            </div>
+          </template>
           <div v-if="analysisSnapshot.trend.length" ref="trendChart" class="chart-container"></div>
           <div v-else class="empty-state">暂无能耗趋势数据</div>
         </DataCard>
 
         <div class="bottom-charts">
-          <DataCard title="TOP10能耗排行榜" class="rank-card">
-            <template #header-extra><span class="unit-label">单位: kWh</span></template>
-            <div class="module-context"><span>{{ filterSummary }}</span></div>
+          <DataCard title="TOP10 区域能耗排行" class="rank-card module-card">
+            <template #header-extra>
+              <div class="module-header-extra">
+                <span class="filter-chip area-chip" :title="areaRangeLabel">{{ areaTagLabel }}</span>
+                <span class="filter-chip">{{ selectedDeviceType?.label || '--' }}</span>
+                <span class="filter-chip time-chip" :title="timeRangeLabel">{{ timeRangeTagLabel }}</span>
+                <span class="filter-chip granularity-chip">{{ trendGranularityLabel }}</span>
+                <span class="unit-label">单位: kWh</span>
+              </div>
+            </template>
             <div v-if="analysisSnapshot.ranking.length" class="rank-list">
-              <div v-for="(item, index) in analysisSnapshot.ranking" :key="item.name" class="rank-item">
+              <div v-for="(item, index) in analysisSnapshot.ranking" :key="item.id" class="rank-item">
                 <span class="rank-index" :class="{ highlight: index < 3 }">{{ String(index + 1).padStart(2, '0') }}</span>
-                <span class="rank-name">{{ item.name }}</span>
+                <span class="rank-name" :title="item.name">{{ item.name }}</span>
                 <div class="rank-bar-wrapper"><div class="rank-bar" :style="rankBarStyle(item.percent)"></div></div>
                 <span class="rank-value">{{ formatEnergy(item.value) }}</span>
               </div>
             </div>
-            <div v-else class="empty-state">暂无排行数据</div>
+            <div v-else class="empty-state">{{ rankingLoading ? '区域排行数据加载中' : '暂无区域排行数据' }}</div>
           </DataCard>
 
-          <DataCard title="能耗环比分析" class="compare-card">
-            <div class="module-context">
-              <span>{{ comparisonSummary }}</span>
-              <span v-if="currentPeriodIncludesToday" class="context-note">数据统计截至当前时间</span>
-            </div>
+          <DataCard title="能耗环比分析" class="compare-card module-card">
+            <template #header-extra>
+              <div class="module-header-extra">
+                <span class="filter-chip area-chip" :title="areaRangeLabel">{{ areaTagLabel }}</span>
+                <span class="filter-chip">{{ selectedDeviceType?.label || '--' }}</span>
+                <span class="filter-chip time-chip" :title="timeRangeLabel">{{ timeRangeTagLabel }}</span>
+                <span class="filter-chip granularity-chip">{{ trendGranularityLabel }}</span>
+                <span class="unit-label">单位: kWh</span>
+              </div>
+            </template>
             <div v-if="comparisonHasData" class="comparison-content">
-              <div class="period-row">
-                <div class="period-item">
-                  <span>当前统计周期</span>
-                  <strong>{{ currentPeriodLabel }}</strong>
-                </div>
-                <div class="period-item">
-                  <span>对比统计周期</span>
-                  <strong>{{ previousPeriodLabel }}</strong>
-                </div>
+              <div class="comparison-summary">
+                <span :title="currentPeriodLabel">当前周期 <strong>{{ formatEnergy(comparison.currentPeriod.energy) }}</strong> kWh</span>
+                <span :title="previousPeriodLabel">对比周期 <strong>{{ formatEnergy(comparison.previousPeriod.energy) }}</strong> kWh</span>
+                <span>环比 <strong :class="comparisonStatusClass">{{ comparisonRateText }}</strong></span>
               </div>
-              <div class="comparison-metrics">
-                <div class="metric-item">
-                  <span>当前周期能耗</span>
-                  <strong>{{ formatEnergy(comparison.currentPeriod.energy) }} <small>kWh</small></strong>
-                </div>
-                <div class="metric-item">
-                  <span>上一周期能耗</span>
-                  <strong>{{ formatEnergy(comparison.previousPeriod.energy) }} <small>kWh</small></strong>
-                </div>
-                <div class="metric-item">
-                  <span>环比变化值</span>
-                  <strong :class="comparisonStatusClass">{{ formatSignedEnergy(comparison.changeValue) }} <small>kWh</small></strong>
-                </div>
-                <div class="metric-item">
-                  <span>环比变化率</span>
-                  <strong :class="comparisonStatusClass">{{ comparisonRateText }}</strong>
-                </div>
-              </div>
-              <div class="comparison-footer">
-                <span>变化状态</span>
-                <strong :class="['status-pill', comparisonStatusClass]">{{ comparisonStatusText }}</strong>
-              </div>
+              <div ref="compareChart" class="compare-chart"></div>
+              <div v-if="currentPeriodIncludesToday" class="comparison-data-note">当前周期数据统计截至当前时间</div>
             </div>
             <div v-else class="empty-state">暂无可比数据</div>
           </DataCard>
@@ -179,6 +166,7 @@ import {
   addDays,
   createEnergyAnalysisSnapshot,
   formatDate,
+  loadEnergyRankingAreas,
   parseDate,
   subtractCalendarMonths
 } from '../services/energyAnalysisService'
@@ -188,6 +176,8 @@ const ENERGY_ANALYSIS_COLORS = {
   trendFade: 'rgba(85, 216, 255, 0)',
   rank: '#55d8ff',
   rankAccent: '#4d9fff',
+  comparisonCurrent: '#55d8ff',
+  comparisonPrevious: '#5ee79a',
   progress: '#55d8ff',
   progressAccent: '#4d9fff',
   axis: '#8fa8c1',
@@ -221,9 +211,15 @@ const initialAreaPath = findNodePath(areaTree, (node) => node.mapId === DEFAULT_
 const initialAreaNode = initialAreaPath.at(-1) || areaTree[0]
 const selectedArea = ref(normalizeSelectedArea(initialAreaNode))
 const expandedTreeIds = ref(new Set(collectExpandableIds(areaTree)))
+const rankingAreas = ref([])
+const rankingLoading = ref(false)
+let rankingLoadToken = 0
 
 const trendChart = ref(null)
+const compareChart = ref(null)
 let trendChartInstance = null
+let compareChartInstance = null
+let chartResizeObserver = null
 
 const selectedDeviceType = computed(() => deviceTypes.find((type) => type.value === selectedType.value) || deviceTypes[0])
 const selectedTimePreset = computed(() => timePresets.find((preset) => preset.value === selectedPreset.value))
@@ -240,13 +236,23 @@ const timeRangeLabel = computed(() => {
   if (selectedPreset.value !== 'custom') return selectedTimePreset.value?.label || '当日'
   return `${formatDate(dateRange.value.startDate)} 至 ${formatDate(dateRange.value.endDate)}`
 })
+const timeRangeTagLabel = computed(() => {
+  if (selectedPreset.value !== 'custom') return timeRangeLabel.value
+  const start = formatDate(dateRange.value.startDate).replaceAll('-', '/')
+  const end = formatDate(dateRange.value.endDate).replaceAll('-', '/')
+  return start.slice(0, 4) === end.slice(0, 4)
+    ? `${start}~${end.slice(5)}`
+    : `${start}~${end}`
+})
 const areaRangeLabel = computed(() => (
   selectedArea.value.level === 'building'
     ? `${selectedArea.value.label}（整栋建筑）`
     : selectedArea.value.label
 ))
-const filterSummary = computed(() => `${areaRangeLabel.value} · ${selectedDeviceType.value?.label || '--'} · ${timeRangeLabel.value}`)
-const comparisonSummary = computed(() => `${filterSummary.value} · 对比上一个等长周期`)
+const areaTagLabel = computed(() => selectedArea.value.label)
+const selectedAreaNode = computed(() => (
+  findNodePath(areaTree, (node) => node.id === selectedArea.value.id).at(-1) || initialAreaNode
+))
 const currentPeriodIncludesToday = computed(() => (
   formatDate(dateRange.value.startDate) <= todayValue && formatDate(dateRange.value.endDate) >= todayValue
 ))
@@ -255,22 +261,19 @@ const analysisSnapshot = computed(() => createEnergyAnalysisSnapshot({
   areaLevel: selectedArea.value.level,
   deviceType: selectedType.value,
   startDate: dateRange.value.startDate,
-  endDate: dateRange.value.endDate
+  endDate: dateRange.value.endDate,
+  rankingAreas: rankingAreas.value
 }))
 const comparison = computed(() => analysisSnapshot.value.comparison)
 const comparisonHasData = computed(() => (
-  Number.isFinite(comparison.value.currentPeriod.energy) && Number.isFinite(comparison.value.previousPeriod.energy)
+  comparison.value.series.some((item) => (
+    Number.isFinite(item.currentValue) || Number.isFinite(item.previousValue)
+  ))
 ))
 const currentPeriodLabel = computed(() => formatPeriod(comparison.value.currentPeriod))
 const previousPeriodLabel = computed(() => formatPeriod(comparison.value.previousPeriod))
 const trendGranularityLabel = computed(() => ({ day: '按日', week: '按周', month: '按月' }[analysisSnapshot.value.granularity]))
 const comparisonStatusClass = computed(() => `status-${comparison.value.status}`)
-const comparisonStatusText = computed(() => ({
-  up: '上升',
-  down: '下降',
-  flat: '基本持平',
-  unavailable: '暂无可比数据'
-}[comparison.value.status]))
 const comparisonRateText = computed(() => (
   comparison.value.comparable && Number.isFinite(comparison.value.changeRate)
     ? `${comparison.value.changeRate > 0 ? '+' : ''}${comparison.value.changeRate.toFixed(2)}%`
@@ -309,6 +312,15 @@ function applyCustomRange() {
 
 function selectArea(node) {
   selectedArea.value = normalizeSelectedArea(node)
+}
+
+async function refreshRankingAreas() {
+  const loadToken = ++rankingLoadToken
+  rankingLoading.value = true
+  const areas = await loadEnergyRankingAreas(selectedAreaNode.value, areaMapConfig)
+  if (loadToken !== rankingLoadToken) return
+  rankingAreas.value = areas
+  rankingLoading.value = false
 }
 
 function toggleTreeNode(nodeId) {
@@ -353,16 +365,16 @@ function formatEnergy(value) {
   return Number.isFinite(value) ? Math.round(value).toLocaleString('zh-CN') : '--'
 }
 
-function formatSignedEnergy(value) {
-  if (!Number.isFinite(value)) return '--'
-  const prefix = value > 0 ? '+' : ''
-  return `${prefix}${Math.round(value).toLocaleString('zh-CN')}`
-}
-
 function initTrendChart() {
   if (!window.echarts || !trendChart.value) return
   trendChartInstance = window.echarts.init(trendChart.value)
   updateTrendChart()
+}
+
+function initCompareChart() {
+  if (!window.echarts || !compareChart.value) return
+  compareChartInstance = window.echarts.init(compareChart.value)
+  updateCompareChart()
 }
 
 function updateTrendChart() {
@@ -414,30 +426,118 @@ function updateTrendChart() {
   }, true)
 }
 
-function handleResize() {
-  trendChartInstance?.resize()
+function updateCompareChart() {
+  if (!compareChartInstance) return
+  const series = comparison.value.series
+  compareChartInstance.setOption({
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: ENERGY_ANALYSIS_COLORS.tooltipBg,
+      borderColor: ENERGY_ANALYSIS_COLORS.tooltipBorder,
+      textStyle: { color: ENERGY_ANALYSIS_COLORS.tooltipText },
+      formatter(params) {
+        const point = series[params[0]?.dataIndex]
+        if (!point) return ''
+        const differenceText = Number.isFinite(point.difference)
+          ? `${point.difference > 0 ? '+' : ''}${formatEnergy(point.difference)} kWh`
+          : '--'
+        const rateText = Number.isFinite(point.changeRate)
+          ? `${point.changeRate > 0 ? '+' : ''}${point.changeRate.toFixed(2)}%`
+          : '暂无可比数据'
+        const cutoffText = currentPeriodIncludesToday.value ? '<br/>当前周期统计截至当前时间' : ''
+        return [
+          `<strong>${point.label}</strong>`,
+          `<br/>当前周期 (${point.currentLabel}): ${formatEnergy(point.currentValue)} kWh`,
+          `<br/>对比周期 (${point.previousLabel}): ${formatEnergy(point.previousValue)} kWh`,
+          `<br/>差值: ${differenceText}`,
+          `<br/>变化率: ${rateText}`,
+          cutoffText
+        ].join('')
+      }
+    },
+    legend: {
+      top: 0,
+      right: 4,
+      itemWidth: 12,
+      itemHeight: 8,
+      textStyle: { color: ENERGY_ANALYSIS_COLORS.axis, fontSize: 11 },
+      data: ['当前周期', '对比周期']
+    },
+    grid: { left: '3%', right: '3%', bottom: '4%', top: 34, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: series.map((item) => item.label),
+      axisLine: { lineStyle: { color: ENERGY_ANALYSIS_COLORS.axisLine } },
+      axisTick: { alignWithLabel: true },
+      axisLabel: { color: ENERGY_ANALYSIS_COLORS.axis, fontSize: 10, hideOverlap: true }
+    },
+    yAxis: {
+      type: 'value',
+      name: 'kWh',
+      nameTextStyle: { color: ENERGY_ANALYSIS_COLORS.axis },
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: ENERGY_ANALYSIS_COLORS.splitLine } },
+      axisLabel: { color: ENERGY_ANALYSIS_COLORS.axis, fontSize: 10 }
+    },
+    series: [
+      {
+        name: '当前周期',
+        type: 'bar',
+        data: series.map((item) => item.currentValue),
+        barMaxWidth: 26,
+        itemStyle: { color: ENERGY_ANALYSIS_COLORS.comparisonCurrent, borderRadius: [2, 2, 0, 0] }
+      },
+      {
+        name: '对比周期',
+        type: 'bar',
+        data: series.map((item) => item.previousValue),
+        barMaxWidth: 26,
+        itemStyle: { color: ENERGY_ANALYSIS_COLORS.comparisonPrevious, borderRadius: [2, 2, 0, 0] }
+      }
+    ]
+  }, true)
 }
 
-watch(analysisSnapshot, () => nextTick(updateTrendChart))
+function handleResize() {
+  trendChartInstance?.resize()
+  compareChartInstance?.resize()
+}
+
+watch(selectedArea, refreshRankingAreas, { immediate: true })
+watch(analysisSnapshot, () => nextTick(() => {
+  updateTrendChart()
+  updateCompareChart()
+}))
 
 onMounted(() => {
-  nextTick(initTrendChart)
+  nextTick(() => {
+    initTrendChart()
+    initCompareChart()
+    if (window.ResizeObserver) {
+      chartResizeObserver = new ResizeObserver(() => requestAnimationFrame(handleResize))
+      if (trendChart.value) chartResizeObserver.observe(trendChart.value)
+      if (compareChart.value) chartResizeObserver.observe(compareChart.value)
+    }
+  })
   window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  chartResizeObserver?.disconnect()
   trendChartInstance?.dispose()
+  compareChartInstance?.dispose()
 })
 </script>
 
 <style scoped>
-.energy-analysis-page { width: 100%; height: 100%; padding: 20px; overflow: auto; }
-.page-content { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; min-height: 820px; }
-.filter-card { height: 100%; }
-.filter-card :deep(.card-body) { padding: 14px; overflow: auto; }
+.energy-analysis-page { width: 100%; height: 100%; min-height: 0; padding: 20px; overflow: auto; }
+.page-content { height: 100%; min-height: 600px; display: grid; grid-template-columns: 280px minmax(0, 1fr); align-items: stretch; gap: 16px; }
+.filter-card { height: 100%; min-height: 0; }
+.filter-card :deep(.card-body) { min-height: 0; padding: 14px; overflow: auto; }
 .filter-section { margin-bottom: 16px; padding-bottom: 15px; border-bottom: 1px solid var(--border-subtle); }
-.area-filter-section { min-height: 0; }
+.area-filter-section { min-height: 150px; display: flex; flex: 1; flex-direction: column; }
 .filter-title { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--text-strong); font-size: 14px; font-weight: 500; }
 .filter-icon { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--info-soft); color: var(--accent-cyan); font-size: 12px; }
 .preset-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
@@ -453,11 +553,8 @@ onUnmounted(() => {
 .device-types { display: flex; flex-wrap: wrap; gap: 8px; }
 .type-btn { min-width: 68px; border-radius: 999px; }
 .area-hint { margin: -3px 0 7px 28px; color: var(--text-muted); font-size: 10px; }
-.area-tree { max-height: 315px; overflow: auto; padding-right: 3px; }
-.active-filter-summary { padding: 11px; border: 1px solid var(--border-default); border-radius: 10px; background: linear-gradient(135deg, var(--info-soft), rgba(77, 159, 255, 0.04)); }
-.active-filter-summary span { display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 10px; }
-.active-filter-summary strong { display: block; color: var(--text-strong); font-size: 12px; font-weight: 500; line-height: 1.55; }
-.right-section { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.area-tree { min-height: 0; flex: 1; overflow: auto; padding-right: 3px; }
+.right-section { min-width: 0; min-height: 0; height: 100%; display: flex; flex-direction: column; gap: 16px; }
 .kpi-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; flex: 0 0 auto; }
 .kpi-card { background: linear-gradient(180deg, rgba(85, 216, 255, 0.07), var(--card-bg-strong)); border: 1px solid var(--border-default); border-radius: 12px; padding: 16px; box-shadow: inset 0 1px 0 var(--inner-highlight), var(--shadow-panel); }
 .kpi-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
@@ -472,17 +569,20 @@ onUnmounted(() => {
 .kpi-progress { height: 4px; overflow: hidden; border-radius: 999px; background: var(--offline-soft); }
 .progress-bar, .progress-fill { height: 100%; border-radius: 999px; }
 .progress-fill { box-shadow: 0 0 10px rgba(159, 216, 255, 0.18); }
-.trend-card { flex: 0 0 294px; min-height: 0; }
-.trend-card :deep(.card-body), .rank-card :deep(.card-body), .compare-card :deep(.card-body) { padding-top: 12px; }
-.module-context { min-height: 29px; display: flex; align-items: flex-start; gap: 8px; margin-bottom: 7px; color: var(--text-tertiary); font-size: 11px; line-height: 1.45; }
-.module-context > span:first-child { flex: 1; }
-.context-tag, .context-note { flex: 0 0 auto; padding: 3px 7px; border-radius: 999px; background: var(--info-soft); color: var(--accent-cyan); white-space: nowrap; }
-.context-note { background: var(--warning-soft); color: var(--warning); }
-.unit-label { color: var(--text-muted); font-size: 11px; }
-.chart-container { width: 100%; min-height: 200px; flex: 1; }
-.bottom-charts { display: grid; grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); gap: 16px; min-height: 330px; flex: 1; }
+.trend-card { min-height: 200px; flex: 1.08 1 0; }
+.trend-card :deep(.card-body), .rank-card :deep(.card-body), .compare-card :deep(.card-body) { min-height: 0; padding-top: 12px; }
+.module-card :deep(.card-header) { gap: 8px; }
+.module-card :deep(.title-text) { flex: 0 0 auto; letter-spacing: 0; white-space: nowrap; }
+.module-header-extra { min-width: 0; flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 6px; overflow: hidden; }
+.filter-chip { min-width: 0; max-width: 82px; overflow: hidden; padding: 4px 8px; border: 1px solid rgba(143, 168, 193, 0.16); border-radius: 999px; background: rgba(143, 168, 193, 0.08); color: var(--text-secondary); font-size: 11px; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.filter-chip.area-chip { max-width: 116px; }
+.filter-chip.time-chip { max-width: 158px; }
+.filter-chip.granularity-chip { flex: 0 0 auto; border-color: rgba(85, 216, 255, 0.2); background: var(--info-soft); color: var(--accent-cyan); }
+.unit-label { flex: 0 0 auto; margin-left: 2px; color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+.chart-container { width: 100%; min-height: 0; flex: 1; }
+.bottom-charts { min-height: 260px; display: grid; grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); gap: 16px; flex: 1 1 0; }
 .rank-card, .compare-card { min-width: 0; height: 100%; }
-.rank-list { display: flex; flex-direction: column; gap: 8px; overflow: auto; }
+.rank-list { min-height: 0; display: flex; flex: 1; flex-direction: column; gap: 8px; overflow: auto; }
 .rank-item { display: flex; align-items: center; gap: 8px; min-height: 18px; }
 .rank-index { width: 21px; color: var(--text-muted); font-family: var(--font-num); font-size: 10px; }
 .rank-index.highlight { color: var(--accent-gold); }
@@ -490,31 +590,29 @@ onUnmounted(() => {
 .rank-bar-wrapper { min-width: 42px; height: 7px; flex: 1; overflow: hidden; border-radius: 999px; background: var(--offline-soft); }
 .rank-bar { height: 100%; border-radius: 999px; box-shadow: 0 0 10px rgba(105, 224, 255, 0.2); }
 .rank-value { width: 62px; color: var(--accent-cyan); font-family: var(--font-num); font-size: 11px; text-align: right; }
-.comparison-content { min-height: 0; display: flex; flex: 1; flex-direction: column; gap: 10px; }
-.period-row { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
-.period-item { padding: 9px 10px; border: 1px solid var(--border-subtle); border-radius: 9px; background: rgba(255, 255, 255, 0.025); }
-.period-item span, .metric-item span { display: block; margin-bottom: 4px; color: var(--text-muted); font-size: 10px; }
-.period-item strong { color: var(--text-secondary); font-size: 11px; font-weight: 500; }
-.comparison-metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
-.metric-item { padding: 9px 10px; border-radius: 9px; background: rgba(85, 216, 255, 0.045); }
-.metric-item strong { color: var(--text-primary); font-family: var(--font-num); font-size: 16px; }
-.metric-item small { color: var(--text-muted); font-size: 9px; font-weight: 400; }
-.comparison-footer { display: flex; align-items: center; justify-content: space-between; padding-top: 2px; color: var(--text-tertiary); font-size: 11px; }
-.status-pill { padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+.comparison-content { min-height: 0; display: flex; flex: 1; flex-direction: column; gap: 6px; }
+.comparison-summary { min-height: 24px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; color: var(--text-tertiary); font-size: 10px; }
+.comparison-summary strong { margin-left: 3px; color: var(--text-primary); font-family: var(--font-num); font-size: 12px; font-weight: 600; }
+.compare-chart { width: 100%; min-height: 0; flex: 1; }
+.comparison-data-note { color: var(--warning); font-size: 10px; text-align: right; }
 .status-up { color: var(--danger) !important; }
 .status-down { color: var(--success) !important; }
 .status-flat { color: var(--accent-gold) !important; }
 .status-unavailable { color: var(--text-muted) !important; }
-.status-pill.status-up { background: var(--danger-soft); }
-.status-pill.status-down { background: var(--success-soft); }
-.status-pill.status-flat { background: var(--warning-soft); }
-.status-pill.status-unavailable { background: var(--offline-soft); }
 .empty-state { min-height: 120px; display: flex; flex: 1; align-items: center; justify-content: center; color: var(--text-muted); font-size: 12px; }
 
 @media (max-width: 1180px) {
-  .page-content { grid-template-columns: 250px minmax(0, 1fr); }
+  .page-content { min-height: 654px; grid-template-columns: 250px minmax(0, 1fr); }
+  .right-section { gap: 12px; }
   .kpi-row { grid-template-columns: repeat(2, 1fr); }
   .kpi-value { font-size: 24px; }
-  .trend-card { flex-basis: 270px; }
+  .trend-card { min-height: 165px; }
+  .bottom-charts { min-height: 235px; gap: 12px; }
+}
+
+@media (max-width: 1400px) {
+  .rank-card .module-header-extra { gap: 4px; }
+  .rank-card .filter-chip { padding-right: 6px; padding-left: 6px; font-size: 10px; }
+  .rank-card .unit-label { display: none; }
 }
 </style>

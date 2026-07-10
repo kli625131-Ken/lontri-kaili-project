@@ -1,17 +1,6 @@
-const DAY_MS = 24 * 60 * 60 * 1000
+import { loadLocalDraft } from './deviceMapLocalService'
 
-const RANKING_NAMES = [
-  '照明回路 01',
-  '照明回路 02',
-  '照明回路 03',
-  '照明回路 04',
-  '照明回路 05',
-  '照明回路 06',
-  '照明回路 07',
-  '照明回路 08',
-  '照明回路 09',
-  '照明回路 10'
-]
+const DAY_MS = 24 * 60 * 60 * 1000
 
 export function parseDate(value) {
   if (value instanceof Date) return new Date(value.getFullYear(), value.getMonth(), value.getDate())
@@ -61,6 +50,23 @@ export function resolveTrendGranularity(dayCount) {
   return 'month'
 }
 
+export async function loadEnergyRankingAreas(scopeNode, mapConfig) {
+  const mapNodes = collectMapNodes(scopeNode)
+    .filter((node) => mapConfig[node.mapId]?.available !== false)
+  const showFloorLabel = mapNodes.length > 1
+  const regionGroups = await Promise.all(mapNodes.map(async (mapNode) => {
+    const regions = await loadMapRegions(mapNode.mapId, mapConfig[mapNode.mapId])
+    return regions.map((region) => ({
+      id: `${mapNode.mapId}:${region.id}`,
+      name: showFloorLabel ? `${mapNode.label} · ${region.name}` : region.name
+    }))
+  }))
+
+  const uniqueAreas = new Map()
+  regionGroups.flat().forEach((area) => uniqueAreas.set(area.id, area))
+  return Array.from(uniqueAreas.values())
+}
+
 // 当前仓库没有能耗分析接口；该适配器集中提供可联动的演示数据。
 // 后续接入真实接口时，保持返回结构不变即可，无需改动页面筛选和图表逻辑。
 export function createEnergyAnalysisSnapshot(filters) {
@@ -72,6 +78,7 @@ export function createEnergyAnalysisSnapshot(filters) {
   const currentDaily = createDailySeries(startDate, endDate, filters)
   const previousDaily = createDailySeries(previousPeriod.startDate, previousPeriod.endDate, filters)
   const trend = aggregateTrend(currentDaily, granularity)
+  const comparisonSeries = createComparisonSeries(currentDaily, previousDaily, granularity)
   const currentEnergy = sumEnergy(currentDaily)
   const previousEnergy = sumEnergy(previousDaily)
   const changeValue = currentEnergy - previousEnergy
@@ -80,10 +87,11 @@ export function createEnergyAnalysisSnapshot(filters) {
   return {
     trend,
     granularity,
-    ranking: createRanking(currentEnergy, filters),
+    ranking: createRanking(currentEnergy, filters, filters.rankingAreas),
     comparison: {
       currentPeriod: { startDate, endDate, energy: currentEnergy },
       previousPeriod: { ...previousPeriod, energy: previousEnergy },
+      series: comparisonSeries,
       changeValue,
       changeRate,
       status: resolveComparisonStatus(changeRate),
@@ -139,15 +147,91 @@ function aggregateTrend(dailySeries, granularity) {
   }))
 }
 
-function createRanking(totalEnergy, filters) {
-  if (!Number.isFinite(totalEnergy) || totalEnergy <= 0) return []
-  const seed = hashString(`${filters.areaId}:${filters.deviceType}:${formatDate(filters.startDate)}`)
-  const weighted = RANKING_NAMES.map((name, index) => ({
-    name,
-    value: Math.round(totalEnergy * (0.082 - index * 0.004) * (0.94 + ((seed + index * 7) % 12) / 100))
-  })).sort((a, b) => b.value - a.value)
+function createComparisonSeries(currentDaily, previousDaily, granularity) {
+  const currentBuckets = aggregateTrend(currentDaily, granularity)
+  const previousBuckets = aggregateTrend(previousDaily, granularity)
+  const bucketCount = Math.max(currentBuckets.length, previousBuckets.length)
+
+  return Array.from({ length: bucketCount }, (_, index) => {
+    const current = currentBuckets[index]
+    const previous = previousBuckets[index]
+    const currentValue = Number.isFinite(current?.value) ? current.value : null
+    const previousValue = Number.isFinite(previous?.value) ? previous.value : null
+    const difference = currentValue !== null && previousValue !== null
+      ? currentValue - previousValue
+      : null
+    const changeRate = difference !== null && previousValue > 0
+      ? (difference / previousValue) * 100
+      : null
+
+    return {
+      label: current?.label || previous?.label || '',
+      currentLabel: current?.label || '--',
+      previousLabel: previous?.label || '--',
+      currentValue,
+      previousValue,
+      difference,
+      changeRate
+    }
+  })
+}
+
+function createRanking(totalEnergy, filters, rankingAreas = []) {
+  if (!Number.isFinite(totalEnergy) || totalEnergy <= 0 || !rankingAreas.length) return []
+  const seed = `${filters.areaId}:${filters.deviceType}:${formatDate(filters.startDate)}`
+  const weightedAreas = rankingAreas.map((area) => ({
+    ...area,
+    weight: 0.86 + (hashString(`${seed}:${area.id}`) % 29) / 100
+  }))
+  const totalWeight = weightedAreas.reduce((sum, area) => sum + area.weight, 0)
+  const weighted = weightedAreas.map((area) => ({
+    id: area.id,
+    name: area.name,
+    value: Math.round(totalEnergy * (area.weight / totalWeight))
+  })).sort((a, b) => b.value - a.value).slice(0, 10)
   const maximum = weighted[0]?.value || 1
   return weighted.map((item) => ({ ...item, percent: Math.round((item.value / maximum) * 100) }))
+}
+
+async function loadMapRegions(mapId, config) {
+  if (!mapId || !config?.dataUrl) return []
+
+  const savedRegions = loadLocalDraft(mapId)?.overlay?.regions
+  if (Array.isArray(savedRegions) && savedRegions.length) {
+    return normalizeRegions(savedRegions)
+  }
+
+  try {
+    const response = await fetch(config.dataUrl)
+    if (!response.ok) throw new Error(`${config.dataUrl} request failed: ${response.status}`)
+    const data = await response.json()
+    const sourceRegions = Array.isArray(data.regions)
+      ? data.regions
+      : Array.isArray(data.Regions)
+        ? data.Regions.filter((region) => (
+          (region.Points || region.SvgPoints || []).length >= 3
+        ))
+        : []
+    return normalizeRegions(sourceRegions)
+  } catch (error) {
+    console.warn(`读取区域排行数据失败: ${mapId}`, error)
+    return []
+  }
+}
+
+function normalizeRegions(regions) {
+  return regions
+    .map((region, index) => ({
+      id: String(region.id || region.Id || region.code || region.Code || `region-${index + 1}`),
+      name: String(region.name || region.Name || region.code || region.Code || '').trim()
+    }))
+    .filter((region) => region.name)
+}
+
+function collectMapNodes(node) {
+  if (!node) return []
+  if (node.mapId) return [node]
+  return (node.children || []).flatMap(collectMapNodes)
 }
 
 function sumEnergy(series) {
