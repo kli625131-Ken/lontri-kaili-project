@@ -1,0 +1,1245 @@
+<!DOCTYPE html><html class="light" lang="zh-Hans" data-site-language="zh-CN" data-site-mode="cn" style="--theme-primary: #4538e7; --theme-primary-hover: #3e32d0; --theme-primary-active: #392ebd; --theme-primary-linear: linear-gradient(to right, #6358eb, #3f34d5); --theme-primary-soft-bg: rgba(69, 56, 231, 0.04); --theme-primary-soft-bg-strong: rgba(69, 56, 231, 0.08); --theme-primary-border: rgba(69, 56, 231, 0.22); --theme-primary-border-strong: rgba(69, 56, 231, 0.38); --theme-primary-shadow-rgb: 69, 56, 231; --theme-primary-bg-text-hover: rgba(69, 56, 231, 0.12); --theme-home-title-color: linear-gradient(to right in oklab, #6a60ec 0%, #4538e7 52%, #392ebd 100%); --theme-background-content: #ffffff; --theme-green: #35bd7c; --theme-green-linear: linear-gradient(to right, #00b09b, #96c93d); --theme-green-hover: #00b09b; --theme-green-active: #009688; --theme-green-dark: #1f7a55; --theme-green-dark-2: #176045; --theme-border-line-gray: #E8E6EA;" data-com-igenflow-frame-id="YTzR-v9CoEAhH_oaxePJ"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Modals Composite View</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-high": "#e6e8ea",
+                        "primary-fixed": "#dbe1ff",
+                        "secondary-fixed": "#d3e4fe",
+                        "tertiary": "#943700",
+                        "surface-tint": "#0053db",
+                        "on-background": "#191c1e",
+                        "status-danger": "#F43F5E",
+                        "surface-container-highest": "#e0e3e5",
+                        "on-surface": "#191c1e",
+                        "status-warning": "#F59E0B",
+                        "inverse-primary": "#b4c5ff",
+                        "surface": "#f7f9fb",
+                        "on-error-container": "#93000a",
+                        "surface-container-low": "#f2f4f6",
+                        "surface-variant": "#e0e3e5",
+                        "outline-variant": "#c3c6d7",
+                        "surface-dim": "#d8dadc",
+                        "status-success": "#10B981",
+                        "on-primary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "background": "#f7f9fb",
+                        "secondary-container": "#d0e1fb",
+                        "on-primary-fixed": "#00174b",
+                        "secondary": "#505f76",
+                        "on-tertiary-fixed-variant": "#7d2d00",
+                        "on-surface-variant": "#434655",
+                        "primary": "#004ac6",
+                        "text-id": "#475569",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "tertiary-fixed": "#ffdbcd",
+                        "on-secondary-container": "#54647a",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "error-container": "#ffdad6",
+                        "on-primary-container": "#eeefff",
+                        "inverse-on-surface": "#eff1f3",
+                        "on-tertiary-container": "#ffede6",
+                        "status-info": "#06B6D4",
+                        "outline": "#737686",
+                        "border-subtle": "#E2E8F0",
+                        "on-tertiary": "#ffffff",
+                        "surface-container": "#eceef0",
+                        "inverse-surface": "#2d3133",
+                        "primary-container": "#2563eb",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed-dim": "#ffb596",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed": "#0b1c30",
+                        "on-tertiary-fixed": "#360f00",
+                        "surface-bright": "#f7f9fb",
+                        "tertiary-container": "#bc4800",
+                        "surface-muted": "#F1F5F9",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-fixed-variant": "#38485d"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "element-gap": "0.5rem",
+                        "drawer-width": "420px",
+                        "container-padding": "1rem",
+                        "unit": "4px",
+                        "nav-width": "240px",
+                        "table-row-height": "40px"
+                    },
+                    "fontFamily": {
+                        "label-caps": ["Inter", "sans-serif"],
+                        "code-id": ["JetBrains Mono", "monospace"],
+                        "headline-md": ["Inter", "sans-serif"],
+                        "headline-lg": ["Inter", "sans-serif"],
+                        "body-md": ["Inter", "sans-serif"],
+                        "body-sm": ["Inter", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "label-caps": ["11px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "700" }],
+                        "code-id": ["13px", { lineHeight: "16px", letterSpacing: "-0.02em", fontWeight: "500" }],
+                        "headline-md": ["18px", { lineHeight: "24px", fontWeight: "600" }],
+                        "headline-lg": ["24px", { lineHeight: "32px", fontWeight: "600" }],
+                        "body-md": ["14px", { lineHeight: "20px", fontWeight: "400" }],
+                        "body-sm": ["12px", { lineHeight: "16px", fontWeight: "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-image: radial-gradient(#E2E8F0 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-color: #f7f9fb;
+        }
+    </style>
+<style>
+.igenflow-video-record,
+.igenflow-video-record-cover {
+  pointer-events: none;
+  position: fixed;
+  z-index: 2147483647;
+  animation: borderBreathe 3s ease-in-out infinite;
+  box-sizing: border-box;
+}
+
+@keyframes borderBreathe {
+  0%, 100% {
+    border-color: #10b981;
+    box-shadow: inset 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+  50% {
+    border-color: #34d399;
+    box-shadow: inset 0 0 20px 5px rgba(16, 185, 129, 0.8);
+  }
+}
+
+.igenflow-video-record-cover-confirm {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0 18px;
+  border-radius: 999px;
+  background-color: #35bd7c;
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  box-sizing: border-box;
+  pointer-events: auto;
+  z-index: 2147483647;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.igenflow-video-record-operate {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  gap: 8px;
+  padding: 6px 12px;
+  box-sizing: border-box;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.igenflow-video-record-tip {
+  color: #fff;
+  font-weight: bold;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+.igenflow-video-record-tip-dot,
+.igenflow-video-record-tip-stop {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.igenflow-video-record-tip-dot {
+  background-color: #ef4444;
+  animation: 1.5s ease-in-out infinite pulse;
+}
+.igenflow-video-record-tip-stop {
+  background-color: #fff;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.igenflow-video-record-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: bold;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.igenflow-video-record-button-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.28);
+  box-sizing: border-box;
+}
+
+.igenflow-video-record-button-item {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid #4b5563;
+  background-color: rgba(31, 41, 55, 0.92);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 2147483647;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.igenflow-video-record-button-item img {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: block;
+  flex: none;
+}
+
+.igenflow-video-record-button-screenshot:hover,
+.igenflow-video-record-button-end:hover {
+  background-color: #35bd7c;
+  border-color: #35bd7c;
+}
+
+.igenflow-video-record-button-pause:hover {
+  background-color: #f59e0b;
+  border-color: #f59e0b;
+}
+
+.igenflow-video-capture {
+  position: fixed;
+  z-index: 2147483647;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.igenflow-video-capture-button.igenflow-video-record-button-item {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-color: rgba(255, 255, 255, 0.18);
+  background-color: rgba(17, 24, 39, 0.92);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.24);
+  backdrop-filter: blur(6px);
+  border-radius: 999px;
+  transform-origin: center;
+  will-change: transform, box-shadow, background-color;
+}
+
+.igenflow-video-capture-button.igenflow-video-record-button-item:hover {
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.32);
+}
+
+.igenflow-video-capture-button.igenflow-video-record-button-item:hover img {
+  animation: videoCaptureLogoPulse 0.7s ease-in-out infinite alternate;
+}
+
+.igenflow-video-capture-button.igenflow-video-record-button-item:active {
+  transform: scale(0.98);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.22);
+}
+
+@keyframes videoCaptureLogoPulse {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.16);
+  }
+}
+
+.igenflow-video-record-cross-content {
+  padding: 12px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  box-sizing: border-box;
+  z-index: 2147483647;
+  min-height: 40px;
+  text-align: center;
+  width: 100%;
+}
+
+.igenflow-video-record-cross-content p {
+  margin: 0;
+}
+
+.igenflow-video-record-cross-content-operate {
+  z-index: 2147483647;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: auto;
+  margin-top: 12px;
+}
+
+.igenflow-video-record-cross-confirm,
+.igenflow-video-record-cross-cancel {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  box-sizing: border-box;
+  pointer-events: auto;
+  z-index: 2147483647;
+  transition: all 0.3s;
+}
+
+.igenflow-video-record-cross-confirm {
+  background-color: #35bd7c;
+  color: #fff;
+}
+.igenflow-video-record-cross-confirm:hover {
+  background-color: #00b09b;
+}
+.igenflow-video-record-cross-confirm:active {
+  background-color: #009688;
+}
+
+.igenflow-video-record-cross-cancel {
+  background-color: #fff;
+  color: rgba(0, 0, 0, 0.8);
+}
+.igenflow-video-record-cross-cancel:hover {
+  background-color: rgba(255, 255, 255, 0.8);
+}
+.igenflow-video-record-cross-cancel:active {
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
+</style><style>
+.igenflow-video-record,
+.igenflow-video-record-cover {
+  pointer-events: none;
+  position: fixed;
+  z-index: 2147483647;
+  animation: borderBreathe 3s ease-in-out infinite;
+  box-sizing: border-box;
+}
+
+@keyframes borderBreathe {
+  0%, 100% {
+    border-color: #10b981;
+    box-shadow: inset 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+  50% {
+    border-color: #34d399;
+    box-shadow: inset 0 0 20px 5px rgba(16, 185, 129, 0.8);
+  }
+}
+
+.igenflow-video-record-cover-confirm {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0 18px;
+  border-radius: 999px;
+  background-color: #35bd7c;
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  box-sizing: border-box;
+  pointer-events: auto;
+  z-index: 2147483647;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.igenflow-video-record-operate {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  gap: 8px;
+  padding: 6px 12px;
+  box-sizing: border-box;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.igenflow-video-record-tip {
+  color: #fff;
+  font-weight: bold;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+.igenflow-video-record-tip-dot,
+.igenflow-video-record-tip-stop {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.igenflow-video-record-tip-dot {
+  background-color: #ef4444;
+  animation: 1.5s ease-in-out infinite pulse;
+}
+.igenflow-video-record-tip-stop {
+  background-color: #fff;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.igenflow-video-record-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: bold;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.igenflow-video-record-button-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.28);
+  box-sizing: border-box;
+}
+
+.igenflow-video-record-button-item {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid #4b5563;
+  background-color: rgba(31, 41, 55, 0.92);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 2147483647;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.igenflow-video-record-button-item img {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: block;
+  flex: none;
+}
+
+.igenflow-video-record-button-screenshot:hover,
+.igenflow-video-record-button-end:hover {
+  background-color: #35bd7c;
+  border-color: #35bd7c;
+}
+
+.igenflow-video-record-button-pause:hover {
+  background-color: #f59e0b;
+  border-color: #f59e0b;
+}
+
+.igenflow-video-capture {
+  position: fixed;
+  z-index: 2147483647;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.igenflow-video-capture-button.igenflow-video-record-button-item {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-color: rgba(255, 255, 255, 0.18);
+  background-color: rgba(17, 24, 39, 0.92);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.24);
+  backdrop-filter: blur(6px);
+  border-radius: 999px;
+  transform-origin: center;
+  will-change: transform, box-shadow, background-color;
+}
+
+.igenflow-video-capture-button.igenflow-video-record-button-item:hover {
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.32);
+}
+
+.igenflow-video-capture-button.igenflow-video-record-button-item:hover img {
+  animation: videoCaptureLogoPulse 0.7s ease-in-out infinite alternate;
+}
+
+.igenflow-video-capture-button.igenflow-video-record-button-item:active {
+  transform: scale(0.98);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.22);
+}
+
+@keyframes videoCaptureLogoPulse {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.16);
+  }
+}
+
+.igenflow-video-record-cross-content {
+  padding: 12px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  box-sizing: border-box;
+  z-index: 2147483647;
+  min-height: 40px;
+  text-align: center;
+  width: 100%;
+}
+
+.igenflow-video-record-cross-content p {
+  margin: 0;
+}
+
+.igenflow-video-record-cross-content-operate {
+  z-index: 2147483647;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: auto;
+  margin-top: 12px;
+}
+
+.igenflow-video-record-cross-confirm,
+.igenflow-video-record-cross-cancel {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  box-sizing: border-box;
+  pointer-events: auto;
+  z-index: 2147483647;
+  transition: all 0.3s;
+}
+
+.igenflow-video-record-cross-confirm {
+  background-color: #35bd7c;
+  color: #fff;
+}
+.igenflow-video-record-cross-confirm:hover {
+  background-color: #00b09b;
+}
+.igenflow-video-record-cross-confirm:active {
+  background-color: #009688;
+}
+
+.igenflow-video-record-cross-cancel {
+  background-color: #fff;
+  color: rgba(0, 0, 0, 0.8);
+}
+.igenflow-video-record-cross-cancel:hover {
+  background-color: rgba(255, 255, 255, 0.8);
+}
+.igenflow-video-record-cross-cancel:active {
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
+</style><style>
+.igenflow-video-record,
+.igenflow-video-record-cover {
+  pointer-events: none;
+  position: fixed;
+  z-index: 2147483647;
+  animation: borderBreathe 3s ease-in-out infinite;
+  box-sizing: border-box;
+}
+
+@keyframes borderBreathe {
+  0%, 100% {
+    border-color: #10b981;
+    box-shadow: inset 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+  50% {
+    border-color: #34d399;
+    box-shadow: inset 0 0 20px 5px rgba(16, 185, 129, 0.8);
+  }
+}
+
+.igenflow-video-record-cover-confirm {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0 18px;
+  border-radius: 999px;
+  background-color: #35bd7c;
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  box-sizing: border-box;
+  pointer-events: auto;
+  z-index: 2147483647;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.igenflow-video-record-operate {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  gap: 8px;
+  padding: 6px 12px;
+  box-sizing: border-box;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.igenflow-video-record-tip {
+  color: #fff;
+  font-weight: bold;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+.igenflow-video-record-tip-dot,
+.igenflow-video-record-tip-stop {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.igenflow-video-record-tip-dot {
+  background-color: #ef4444;
+  animation: 1.5s ease-in-out infinite pulse;
+}
+.igenflow-video-record-tip-stop {
+  background-color: #fff;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.igenflow-video-record-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: bold;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.igenflow-video-record-button-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.28);
+  box-sizing: border-box;
+}
+
+.igenflow-video-record-button-item {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid #4b5563;
+  background-color: rgba(31, 41, 55, 0.92);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 2147483647;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.igenflow-video-record-button-item img {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: block;
+  flex: none;
+}
+
+.igenflow-video-record-button-screenshot:hover,
+.igenflow-video-record-button-end:hover {
+  background-color: #35bd7c;
+  border-color: #35bd7c;
+}
+
+.igenflow-video-record-button-pause:hover {
+  background-color: #f59e0b;
+  border-color: #f59e0b;
+}
+
+.igenflow-video-capture {
+  position: fixed;
+  z-index: 2147483647;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.igenflow-video-capture-button.igenflow-video-record-button-item {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-color: rgba(255, 255, 255, 0.18);
+  background-color: rgba(17, 24, 39, 0.92);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.24);
+  backdrop-filter: blur(6px);
+  border-radius: 999px;
+  transform-origin: center;
+  will-change: transform, box-shadow, background-color;
+}
+
+.igenflow-video-capture-button.igenflow-video-record-button-item:hover {
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.32);
+}
+
+.igenflow-video-capture-button.igenflow-video-record-button-item:hover img {
+  animation: videoCaptureLogoPulse 0.7s ease-in-out infinite alternate;
+}
+
+.igenflow-video-capture-button.igenflow-video-record-button-item:active {
+  transform: scale(0.98);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.22);
+}
+
+@keyframes videoCaptureLogoPulse {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.16);
+  }
+}
+
+.igenflow-video-record-cross-content {
+  padding: 12px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  box-sizing: border-box;
+  z-index: 2147483647;
+  min-height: 40px;
+  text-align: center;
+  width: 100%;
+}
+
+.igenflow-video-record-cross-content p {
+  margin: 0;
+}
+
+.igenflow-video-record-cross-content-operate {
+  z-index: 2147483647;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: auto;
+  margin-top: 12px;
+}
+
+.igenflow-video-record-cross-confirm,
+.igenflow-video-record-cross-cancel {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  box-sizing: border-box;
+  pointer-events: auto;
+  z-index: 2147483647;
+  transition: all 0.3s;
+}
+
+.igenflow-video-record-cross-confirm {
+  background-color: #35bd7c;
+  color: #fff;
+}
+.igenflow-video-record-cross-confirm:hover {
+  background-color: #00b09b;
+}
+.igenflow-video-record-cross-confirm:active {
+  background-color: #009688;
+}
+
+.igenflow-video-record-cross-cancel {
+  background-color: #fff;
+  color: rgba(0, 0, 0, 0.8);
+}
+.igenflow-video-record-cross-cancel:hover {
+  background-color: rgba(255, 255, 255, 0.8);
+}
+.igenflow-video-record-cross-cancel:active {
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
+</style><style>
+.igenflow-video-record,
+.igenflow-video-record-cover {
+  pointer-events: none;
+  position: fixed;
+  z-index: 2147483647;
+  animation: borderBreathe 3s ease-in-out infinite;
+  box-sizing: border-box;
+}
+
+@keyframes borderBreathe {
+  0%, 100% {
+    border-color: #10b981;
+    box-shadow: inset 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+  50% {
+    border-color: #34d399;
+    box-shadow: inset 0 0 20px 5px rgba(16, 185, 129, 0.8);
+  }
+}
+
+.igenflow-video-record-cover-confirm {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0 18px;
+  border-radius: 999px;
+  background-color: #35bd7c;
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  box-sizing: border-box;
+  pointer-events: auto;
+  z-index: 2147483647;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.igenflow-video-record-operate {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  gap: 8px;
+  padding: 6px 12px;
+  box-sizing: border-box;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.igenflow-video-record-tip {
+  color: #fff;
+  font-weight: bold;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+.igenflow-video-record-tip-dot,
+.igenflow-video-record-tip-stop {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.igenflow-video-record-tip-dot {
+  background-color: #ef4444;
+  animation: 1.5s ease-in-out infinite pulse;
+}
+.igenflow-video-record-tip-stop {
+  background-color: #fff;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.igenflow-video-record-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: bold;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.igenflow-video-record-button-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.28);
+  box-sizing: border-box;
+}
+
+.igenflow-video-record-button-item {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid #4b5563;
+  background-color: rgba(31, 41, 55, 0.92);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 2147483647;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.igenflow-video-record-button-item img {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: block;
+  flex: none;
+}
+
+.igenflow-video-record-button-screenshot:hover,
+.igenflow-video-record-button-end:hover {
+  background-color: #35bd7c;
+  border-color: #35bd7c;
+}
+
+.igenflow-video-record-button-pause:hover {
+  background-color: #f59e0b;
+  border-color: #f59e0b;
+}
+
+.igenflow-video-capture {
+  position: fixed;
+  z-index: 2147483647;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.igenflow-video-capture-button.igenflow-video-record-button-item {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-color: rgba(255, 255, 255, 0.18);
+  background-color: rgba(17, 24, 39, 0.92);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.24);
+  backdrop-filter: blur(6px);
+  border-radius: 999px;
+  transform-origin: center;
+  will-change: transform, box-shadow, background-color;
+}
+
+.igenflow-video-capture-button.igenflow-video-record-button-item:hover {
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.32);
+}
+
+.igenflow-video-capture-button.igenflow-video-record-button-item:hover img {
+  animation: videoCaptureLogoPulse 0.7s ease-in-out infinite alternate;
+}
+
+.igenflow-video-capture-button.igenflow-video-record-button-item:active {
+  transform: scale(0.98);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.22);
+}
+
+@keyframes videoCaptureLogoPulse {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.16);
+  }
+}
+
+.igenflow-video-record-cross-content {
+  padding: 12px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  box-sizing: border-box;
+  z-index: 2147483647;
+  min-height: 40px;
+  text-align: center;
+  width: 100%;
+}
+
+.igenflow-video-record-cross-content p {
+  margin: 0;
+}
+
+.igenflow-video-record-cross-content-operate {
+  z-index: 2147483647;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: auto;
+  margin-top: 12px;
+}
+
+.igenflow-video-record-cross-confirm,
+.igenflow-video-record-cross-cancel {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  box-sizing: border-box;
+  pointer-events: auto;
+  z-index: 2147483647;
+  transition: all 0.3s;
+}
+
+.igenflow-video-record-cross-confirm {
+  background-color: #35bd7c;
+  color: #fff;
+}
+.igenflow-video-record-cross-confirm:hover {
+  background-color: #00b09b;
+}
+.igenflow-video-record-cross-confirm:active {
+  background-color: #009688;
+}
+
+.igenflow-video-record-cross-cancel {
+  background-color: #fff;
+  color: rgba(0, 0, 0, 0.8);
+}
+.igenflow-video-record-cross-cancel:hover {
+  background-color: rgba(255, 255, 255, 0.8);
+}
+.igenflow-video-record-cross-cancel:active {
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
+</style></head>
+<body class="bg-background min-h-screen font-body-md text-on-surface antialiased p-container-padding flex flex-col gap-8 md:flex-row md:items-start justify-center pt-24">
+<!-- Modal 1: 新建区域 -->
+<div class="w-full max-w-md bg-surface-container-lowest border border-border-subtle rounded-xl shadow-lg flex flex-col relative z-10">
+<!-- Header -->
+<div class="px-6 py-4 border-b border-border-subtle flex justify-between items-center">
+<h2 class="font-headline-md text-headline-md text-on-surface">新建区域</h2>
+<button class="text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: &quot;FILL&quot; 0;">close</span>
+</button>
+</div>
+<!-- Body -->
+<div class="p-6 flex flex-col gap-6">
+<!-- Form Fields -->
+<div class="flex flex-col gap-4">
+<div class="flex flex-col gap-1.5">
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase">区域名称</label>
+<input class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant rounded text-on-surface font-body-md focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" type="text" value="Assembly Line A"><span class="font-body-sm text-body-sm text-on-surface-variant mt-1">名称在此位置内必须唯一。</span>
+</div>
+<div class="grid grid-cols-2 gap-4">
+  <div class="flex flex-col gap-1.5">
+    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">区域组 ID</label>
+    <input class="w-full px-3 py-2 bg-surface-container-high border border-outline-variant rounded text-on-surface-variant font-code-id text-code-id cursor-not-allowed" disabled="" type="text" value="0100">
+  </div>
+  <div class="flex flex-col gap-1.5">
+    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">网关</label>
+    <input class="w-full px-3 py-2 bg-surface-container-high border border-outline-variant rounded text-on-surface-variant font-code-id text-code-id cursor-not-allowed" disabled="" type="text" value="GWGIH#0101">
+  </div>
+</div>
+</div>
+<!-- Device List Section -->
+<div class="flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">自动获取设备 (2)</span>
+</div>
+<div class="border border-border-subtle rounded bg-surface-container-lowest flex flex-col divide-y divide-border-subtle"><!-- Device Row 1 -->
+<div class="flex items-center px-3 h-[table-row-height] gap-3">
+  <span class="material-symbols-outlined text-on-surface-variant text-[18px]">lightbulb</span>
+  <div class="flex flex-col justify-center">
+    <span class="font-code-id text-code-id text-on-surface leading-none">BR001</span>
+  </div>
+  <div class="ml-auto flex items-center gap-1">
+    <div class="w-2 h-2 rounded-full bg-status-success"></div>
+    <span class="font-body-sm text-body-sm text-on-surface-variant">已入网</span>
+  </div>
+</div>
+<!-- Device Row 2 -->
+<div class="flex items-center px-3 h-[table-row-height] gap-3">
+  <span class="material-symbols-outlined text-on-surface-variant text-[18px]">sensors</span>
+  <div class="flex flex-col justify-center">
+    <span class="font-code-id text-code-id text-on-surface leading-none">OCSR001</span>
+  </div>
+  <div class="ml-auto flex items-center gap-1">
+    <div class="w-2 h-2 rounded-full bg-status-warning"></div>
+    <span class="font-body-sm text-body-sm text-on-surface-variant">待入网</span>
+  </div>
+</div></div>
+</div>
+</div>
+<!-- Footer -->
+<div class="px-6 py-4 border-t border-border-subtle bg-surface-container-low rounded-b-xl flex justify-end gap-3">
+<button class="px-4 py-2 border border-outline-variant text-on-surface font-body-md rounded hover:bg-surface-container-highest transition-colors">取消</button>
+<button class="px-4 py-2 bg-primary text-on-primary font-body-md rounded hover:bg-on-primary-fixed-variant transition-colors shadow-sm">创建区域</button>
+</div>
+</div>
+<!-- Right Column for smaller modals -->
+<div class="flex flex-col gap-8 w-full max-w-sm relative z-10">
+<!-- Modal 2: 删除区域？ -->
+<div class="bg-surface-container-lowest border border-border-subtle rounded-xl shadow-lg flex flex-col overflow-hidden">
+<!-- Header with warning accent -->
+<div class="px-6 py-5 border-b border-border-subtle flex gap-4 items-start relative">
+<div class="absolute top-0 left-0 w-full h-1 bg-status-danger"></div>
+<div class="w-10 h-10 rounded-full bg-error-container flex items-center justify-center flex-shrink-0 mt-1">
+<span class="material-symbols-outlined text-error" style="font-variation-settings: &quot;FILL&quot; 1;">warning</span>
+</div>
+<div class="flex flex-col gap-2">
+<h2 class="font-headline-md text-headline-md text-on-surface">删除区域？</h2>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+                        删除区域将同步删除其对应的组、场景、面板和联动订阅信息。设备点位将保留。确认删除？
+                    </p>
+</div>
+</div>
+<!-- Footer -->
+<div class="px-6 py-4 bg-surface-container-low flex justify-end gap-3">
+<button class="px-4 py-2 border border-outline-variant text-on-surface font-body-md rounded hover:bg-surface-container-highest transition-colors">取消</button>
+<button class="px-4 py-2 bg-surface-container-lowest border border-status-danger text-status-danger font-body-md rounded hover:bg-error-container transition-colors">删除区域并同步</button>
+</div>
+</div>
+<!-- Modal 3: Edit Details -->
+
+</div>
+
+
+</body></html>

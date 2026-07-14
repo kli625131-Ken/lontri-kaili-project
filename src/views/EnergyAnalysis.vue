@@ -95,7 +95,6 @@
               <span class="filter-chip area-chip" :title="areaRangeLabel">{{ areaTagLabel }}</span>
               <span class="filter-chip">{{ selectedDeviceType?.label || '--' }}</span>
               <span class="filter-chip time-chip" :title="timeRangeLabel">{{ timeRangeTagLabel }}</span>
-              <span class="filter-chip granularity-chip">{{ trendGranularityLabel }}</span>
               <span class="unit-label">单位: kWh</span>
             </div>
           </template>
@@ -110,7 +109,6 @@
                 <span class="filter-chip area-chip" :title="areaRangeLabel">{{ areaTagLabel }}</span>
                 <span class="filter-chip">{{ selectedDeviceType?.label || '--' }}</span>
                 <span class="filter-chip time-chip" :title="timeRangeLabel">{{ timeRangeTagLabel }}</span>
-                <span class="filter-chip granularity-chip">{{ trendGranularityLabel }}</span>
                 <span class="unit-label">单位: kWh</span>
               </div>
             </template>
@@ -131,7 +129,6 @@
                 <span class="filter-chip area-chip" :title="areaRangeLabel">{{ areaTagLabel }}</span>
                 <span class="filter-chip">{{ selectedDeviceType?.label || '--' }}</span>
                 <span class="filter-chip time-chip" :title="timeRangeLabel">{{ timeRangeTagLabel }}</span>
-                <span class="filter-chip granularity-chip">{{ trendGranularityLabel }}</span>
                 <span class="unit-label">单位: kWh</span>
               </div>
             </template>
@@ -574,10 +571,9 @@ onUnmounted(() => {
 .module-card :deep(.card-header) { gap: 8px; }
 .module-card :deep(.title-text) { flex: 0 0 auto; letter-spacing: 0; white-space: nowrap; }
 .module-header-extra { min-width: 0; flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 6px; overflow: hidden; }
-.filter-chip { min-width: 0; max-width: 82px; overflow: hidden; padding: 4px 8px; border: 1px solid rgba(143, 168, 193, 0.16); border-radius: 999px; background: rgba(143, 168, 193, 0.08); color: var(--text-secondary); font-size: 11px; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.filter-chip { min-width: 0; max-width: 82px; overflow: hidden; padding: 4px 8px; border: 1px solid rgba(85, 216, 255, 0.2); border-radius: 999px; background: var(--info-soft); color: var(--accent-cyan); font-size: 11px; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
 .filter-chip.area-chip { max-width: 116px; }
 .filter-chip.time-chip { max-width: 158px; }
-.filter-chip.granularity-chip { flex: 0 0 auto; border-color: rgba(85, 216, 255, 0.2); background: var(--info-soft); color: var(--accent-cyan); }
 .unit-label { flex: 0 0 auto; margin-left: 2px; color: var(--text-muted); font-size: 11px; white-space: nowrap; }
 .chart-container { width: 100%; min-height: 0; flex: 1; }
 .bottom-charts { min-height: 260px; display: grid; grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); gap: 16px; flex: 1 1 0; }

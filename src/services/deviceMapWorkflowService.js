@@ -460,6 +460,7 @@ function createRegionSnapshot(region, devices) {
     .map((device) => ({
       id: device.id,
       name: device.shortName || device.name || device.id,
+      zigbeeId: device.zigbeeId || '',
       gatewayId: device.gatewayId || device.regionId || '',
       online: device.online !== false
     }))

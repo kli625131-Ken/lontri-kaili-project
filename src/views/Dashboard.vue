@@ -80,63 +80,86 @@
         </div>
 
         <DataCard title="实时照明能耗及节约值" class="energy-chart-card main-energy-card">
-          <div class="filter-buttons">
-            <button v-for="item in filterOptions" :key="item.value" :class="['filter-btn', { active: selectedFilter === item.value }]" @click="changeFilter(item.value)">{{ item.label }}</button>
+          <template #header-extra>
+            <div class="filter-buttons">
+              <button v-for="item in filterOptions" :key="item.value" :class="['filter-btn', { active: selectedFilter === item.value }]" @click="changeFilter(item.value)">{{ item.label }}</button>
+            </div>
+          </template>
+          <div v-if="energyLoading || energyError" :class="['energy-api-status', { error: energyError }]">
+            {{ energyError || '能耗数据加载中...' }}
           </div>
           <div ref="energyChart" class="energy-chart"></div>
         </DataCard>
       </div>
 
       <div class="right-section">
-        <DataCard title="设备运行状态" class="device-status-card">
-          <div class="status-overview">
-            <div class="status-ring" :style="{ '--ring-value': `${currentDeviceHealth.onlineRate}%` }">
-              <div class="status-ring-core">
-                <span>在线率</span>
-                <strong>{{ currentDeviceHealth.onlineRate }}%</strong>
-              </div>
-            </div>
+        <DataCard title="设备状态总览" class="device-health-card">
+          <div v-if="deviceStatusLoading && !dashboardDeviceStatus.updatedAt" class="device-health-loading">
+            设备状态加载中...
+          </div>
 
-            <div class="status-legend">
-              <div v-for="item in currentDeviceHealth.bars" :key="item.label" class="legend-row" :class="item.tone">
-                <i></i>
-                <div class="legend-copy">
-                  <span>{{ item.label }}</span>
-                  <div>
-                    <strong>{{ item.value }}台</strong>
-                    <em>{{ item.percent }}%</em>
-                  </div>
+          <template v-else>
+            <section class="inventory-section" aria-label="设备清单概览">
+              <div class="inventory-ring" :style="deviceTypeRingStyle">
+                <div class="inventory-ring-core">
+                  <strong>{{ dashboardDeviceStatus.inventory.total || '--' }}</strong>
+                  <span>总设备</span>
                 </div>
               </div>
-            </div>
-          </div>
-
-          <div class="status-metric-grid">
-            <div v-for="item in rightStatusMetrics" :key="item.label" class="status-mini-card" :class="item.tone">
-              <span class="panel-icon" :class="item.tone" v-html="iconMap[item.icon]"></span>
-              <div>
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
-              </div>
-            </div>
-          </div>
-        </DataCard>
-
-        <DataCard title="运行概况" class="operation-card">
-          <div class="operation-list">
-            <div v-for="item in operationRows" :key="item.label" class="operation-row" :class="item.tone">
-              <span class="panel-icon" :class="item.tone" v-html="iconMap[item.icon]"></span>
-              <div class="operation-copy">
-                <span>{{ item.label }}</span>
-                <div v-if="item.progress != null" class="operation-progress">
-                  <div :style="{ width: `${item.progress}%` }"></div>
+              <div class="inventory-breakdown">
+                <div class="inventory-row cu">
+                  <i></i>
+                  <span>CU 设备</span>
+                  <strong>{{ dashboardDeviceStatus.inventory.cu }}</strong>
+                </div>
+                <div class="inventory-row gw">
+                  <i></i>
+                  <span>GW 网关</span>
+                  <strong>{{ dashboardDeviceStatus.inventory.gw }}</strong>
+                </div>
+                <div class="inventory-row region">
+                  <i></i>
+                  <span>已配置区域</span>
+                  <strong>{{ dashboardDeviceStatus.inventory.regions }}</strong>
                 </div>
               </div>
-              <strong>{{ item.value }}</strong>
-            </div>
-          </div>
+            </section>
 
-          <div class="status-refresh">数据随区域筛选实时联动</div>
+            <div v-if="dashboardDeviceStatus.errors.inventory" class="device-source-warning">
+              {{ dashboardDeviceStatus.errors.inventory }}
+            </div>
+
+            <section class="connectivity-section" aria-label="设备连接状态">
+              <div class="device-section-heading">
+                <span>连接状态</span>
+                <span :class="['connectivity-badge', { available: dashboardDeviceStatus.connectivity.available }]">
+                  {{ dashboardDeviceStatus.connectivity.available ? '实时状态正常' : '实时状态待接入' }}
+                </span>
+              </div>
+              <div class="connectivity-grid">
+                <div v-for="item in connectivityMetrics" :key="item.label" :class="['connectivity-item', item.tone]">
+                  <span class="connectivity-label"><i></i>{{ item.label }}</span>
+                  <strong>{{ item.value }}</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="alarm-summary-section" aria-label="设备告警状态">
+              <div class="device-section-heading">
+                <span>告警状态</span>
+              </div>
+              <div class="alarm-summary-grid">
+                <div v-for="item in alarmMetrics" :key="item.label" :class="['alarm-summary-item', item.tone]">
+                  <span><i></i>{{ item.label }}</span>
+                  <strong>{{ item.value }}</strong>
+                </div>
+              </div>
+            </section>
+
+            <div v-if="dashboardDeviceStatus.errors.alarms" class="device-source-warning">
+              {{ dashboardDeviceStatus.errors.alarms }}
+            </div>
+          </template>
         </DataCard>
       </div>
     </div>
@@ -149,6 +172,14 @@ import DataCard from '../components/DataCard.vue'
 import kpiFeeImage from '../assets/images/KPI-节约电费.png'
 import kpiRateImage from '../assets/images/KPI-节约率.png'
 import kpiCarbonImage from '../assets/images/KPI-碳排放.png'
+import {
+  createEmptyDashboardDeviceStatus,
+  loadDashboardDeviceStatus
+} from '../services/dashboardDeviceStatusService.js'
+import {
+  createEmptyDashboardEnergy,
+  loadDashboardEnergy
+} from '../services/dashboardEnergyApi.js'
 
 const KPI_COLORS = {
   fee: 'var(--accent-gold)',
@@ -160,7 +191,17 @@ const energyChart = ref(null)
 const trendChart = ref(null)
 let energyChartInstance = null
 let trendChartInstance = null
+let deviceStatusRefreshTimer = null
+let energyRefreshTimer = null
+let dashboardDisposed = false
+let deviceStatusRequestActive = false
+let energyRequestActive = false
 
+const dashboardDeviceStatus = ref(createEmptyDashboardDeviceStatus())
+const deviceStatusLoading = ref(true)
+const dashboardEnergy = ref(createEmptyDashboardEnergy())
+const energyLoading = ref(true)
+const energyError = ref('')
 const iconMap = {
   cost: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="m9 7 7 9 7-9M16 16v10M10 18.5h12M10 22.5h12" fill="none" stroke="currentColor" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   saving: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M25.5 6.5C14.2 7.1 7.5 12.2 8 21.2c7.6.2 13.7-4.6 17.5-14.7Z" fill="currentColor" opacity=".95"/><path d="M8.5 25c3.8-7 8.2-9.7 13.6-12.1" fill="none" stroke="#063e38" stroke-width="2.1" stroke-linecap="round"/><path d="M7 26h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
@@ -169,6 +210,10 @@ const iconMap = {
   grid: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6 7h8v8H6zM18 7h8v8h-8zM6 19h8v6H6zM18 19h8v6h-8z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></svg>`,
   route: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 25c2.4-7.1 2.2-12.2 8-18 5.8 5.8 5.6 10.9 8 18" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M16 7v19M11 17h10" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>`,
   device: `<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="8" y="5.5" width="16" height="21" rx="3.5" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M13 10h6M14 22h4M23.5 12.5l4-2M23.5 18.5l4 2M8.5 12.5l-4-2M8.5 18.5l-4 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+  floors: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="m16 5 11 5-11 5L5 10l11-5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m7 15 9 4 9-4M7 20l9 4 9-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  area: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 12V7h5M20 7h5v5M25 20v5h-5M12 25H7v-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M11 21 21 11M11 16v5h5M21 16v-5h-5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  energy: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="m18 4-10 14h8l-2 10 10-14h-8l2-10Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>`,
+  totalEnergy: `<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="6" width="22" height="20" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 21v-5M16 21V11M22 21v-8M9 10h3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>`,
   gateway: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 14.5a13 13 0 0 1 18 0M11 18.5a7.4 7.4 0 0 1 10 0M15.5 23h1" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>`,
   signal: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 24V14M13 24V10M19 24V6M25 24V16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>`,
   trendUp: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 25V8M5 25h22M9 20l5-6 4 3 8-9M21 8h5v5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
@@ -198,26 +243,6 @@ const navigationTree = [
     { label: '自动化仓', value: 'building-c', floors: [{ label: '1层', value: 'f1', areas: [{ label: '分拣区', value: 'sorting', key: 'sorting' }, { label: '月台区', value: 'platform', key: 'platform' }] }] }
   ] }
 ]
-
-const baseEnergy = {
-  day: { xAxisData: ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'], baseline: [120, 80, 60, 150, 180, 160, 200, 140], current: [40, 30, 20, 50, 60, 55, 70, 45], saveRate: [25, 27, 25, 25, 25, 26, 26, 24] },
-  month: { xAxisData: ['1日', '5日', '10日', '15日', '20日', '25日', '30日'], baseline: [3200, 2800, 3000, 3100, 2900, 3300, 3150], current: [950, 820, 880, 920, 850, 980, 930], saveRate: [23, 23, 23, 23, 23, 23, 23] },
-  quarter: { xAxisData: ['1月', '2月', '3月'], baseline: [95000, 88000, 92000], current: [28500, 26400, 27600], saveRate: [23, 23, 23] }
-}
-const baseTrend = {
-  days: Array.from({ length: 30 }, (_, index) => `${index + 1}日`),
-  cu: [122, 146, 135, 118, 140, 142, 111, 112, 116, 138, 145, 128, 116, 114, 144, 140, 146, 151, 120, 118, 142, 143, 114, 119, 145, 132, 126, 138, 123, 112],
-  scu: [112, 108, 124, 85, 80, 112, 89, 87, 91, 120, 116, 83, 114, 111, 79, 114, 108, 88, 91, 90, 80, 114, 81, 83, 87, 88, 90, 98, 90, 82],
-  ocsr: [83, 74, 85, 84, 80, 66, 62, 60, 61, 79, 82, 61, 84, 82, 72, 90, 84, 85, 74, 86, 87, 74, 77, 79, 83, 85, 72, 62, 60, 61],
-  rate: [36, 31, 34, 30, 37, 35, 32, 34, 33, 38, 31, 35, 30, 31, 32, 34, 33, 34, 35, 30, 37, 31, 30, 32, 39, 35, 34, 31, 33, 28]
-}
-const shift = (list, delta) => list.map((item, index) => Math.max(0, item + delta + ((index % 3) - 1)))
-const shiftRate = (list, delta) => list.map((item, index) => Math.max(12, Math.min(40, item + delta + (index % 2 ? 0 : 1))))
-const shiftEnergy = (energy, delta, rateDelta) => ({
-  day: { ...energy.day, baseline: shift(energy.day.baseline, delta), current: shift(energy.day.current, Math.round(delta * 0.35)), saveRate: shiftRate(energy.day.saveRate, rateDelta) },
-  month: { ...energy.month, baseline: shift(energy.month.baseline, delta * 18), current: shift(energy.month.current, delta * 6), saveRate: shiftRate(energy.month.saveRate, rateDelta) },
-  quarter: { ...energy.quarter, baseline: shift(energy.quarter.baseline, delta * 560), current: shift(energy.quarter.current, delta * 190), saveRate: shiftRate(energy.quarter.saveRate, rateDelta) }
-})
 
 const clampValue = (value, min, max) => Math.max(min, Math.min(max, value))
 const percentOf = (value, total) => Math.round((value / Math.max(total, 1)) * 100)
@@ -292,8 +317,6 @@ const makeScene = (config) => ({
     { name: '温度', icon: '温', value: `${config.temperature} ℃`, status: '正常', progress: config.tempProgress },
     { name: '湿度', icon: '湿', value: `${config.humidity} %`, status: '正常', progress: config.humidityProgress }
   ],
-  energy: shiftEnergy(baseEnergy, config.energyShift, config.rateShift),
-  trend: { ...baseTrend, cu: shift(baseTrend.cu, config.trendShift), scu: shift(baseTrend.scu, config.trendShift - 2), ocsr: shift(baseTrend.ocsr, config.trendShift - 1), rate: shiftRate(baseTrend.rate, config.rateShift) },
   deviceHealth: createDeviceHealth(config),
   controlStatus: createControlStatus(config)
 })
@@ -333,29 +356,91 @@ const currentCampus = computed(() => campusOptions.find((item) => item.value ===
 const currentBuilding = computed(() => buildingOptions.value.find((item) => item.value === selectedBuilding.value))
 const currentArea = computed(() => areaOptions.value.find((item) => item.value === selectedArea.value))
 const currentSceneKey = computed(() => currentArea.value?.key ?? (selectedBuilding.value || selectedCampus.value))
-const currentScene = computed(() => sceneMap[currentSceneKey.value])
-const currentDeviceHealth = computed(() => currentScene.value.deviceHealth)
-const currentControlStatus = computed(() => currentScene.value.controlStatus)
+const formatMetric = (value, digits = 0) => value === null
+  ? '--'
+  : new Intl.NumberFormat('zh-CN', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value)
+const formatEnergyTotal = (value) => {
+  if (value === null) return '--'
+  return value >= 1000 ? `${formatMetric(value / 1000, 1)}MWh` : `${formatMetric(value, 1)}kWh`
+}
+const dashboardKpis = computed(() => {
+  const metrics = dashboardEnergy.value.metrics
+  return [
+    {
+      label: '累计节约电费',
+      value: formatMetric(metrics.savedMoneyYuan),
+      unit: '元',
+      subValue: metrics.yearSavedKWh === null ? '年度节约电量 --' : `年度节约 ${formatMetric(metrics.yearSavedKWh)}kWh`,
+      image: kpiFeeImage,
+      tone: 'blue',
+      valueColor: KPI_COLORS.fee
+    },
+    {
+      label: '照明节约率',
+      value: formatMetric(metrics.savingRate, 1),
+      unit: '%',
+      subValue: '当前统计范围',
+      image: kpiRateImage,
+      tone: 'green',
+      valueColor: KPI_COLORS.rate
+    },
+    {
+      label: '累计碳减排量',
+      value: formatMetric(metrics.carbonReductionTons, 2),
+      unit: 't',
+      subValue: '年度累计减排',
+      image: kpiCarbonImage,
+      tone: 'violet',
+      valueColor: KPI_COLORS.carbon
+    }
+  ]
+})
+const currentScene = computed(() => ({
+  ...sceneMap[currentSceneKey.value],
+  kpis: dashboardKpis.value,
+  energy: dashboardEnergy.value.energy,
+  trend: dashboardEnergy.value.trend
+}))
 const currentPathText = computed(() => [currentCampus.value?.label, currentBuilding.value?.label, currentArea.value?.label].filter(Boolean).join(' / '))
 const currentPathSegments = computed(() => [currentCampus.value?.label, currentBuilding.value?.label, currentArea.value?.label].filter(Boolean))
+const formatInteger = (value) => new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }).format(value)
 const projectStats = computed(() => [
-  { label: '生产车间', value: `${buildingOptions.value.length || 1}个`, icon: 'workshop', tone: 'blue' },
-  { label: '生产区域', value: `${Math.max(areaOptions.value.length, 8)}个`, icon: 'grid', tone: 'cyan' },
-  { label: '绿色通道', value: `${selectedCampus.value === 'park-2' ? 2 : 1}个`, icon: 'route', tone: 'green' },
-  { label: '智能设备', value: `${currentDeviceHealth.value.total}+`, icon: 'device', tone: 'blue' }
+  { label: '楼层数', value: dashboardDeviceStatus.value.inventory.floors ? `${dashboardDeviceStatus.value.inventory.floors}层` : '--', icon: 'floors', tone: 'blue' },
+  { label: '总面积', value: dashboardDeviceStatus.value.inventory.totalArea ? `${formatInteger(dashboardDeviceStatus.value.inventory.totalArea)}㎡` : '--', icon: 'area', tone: 'cyan' },
+  { label: '今日能耗', value: dashboardEnergy.value.metrics.todayKWh === null ? '--' : `${formatMetric(dashboardEnergy.value.metrics.todayKWh)}kWh`, icon: 'energy', tone: 'green' },
+  { label: '年度总能耗', value: formatEnergyTotal(dashboardEnergy.value.metrics.yearKWh), icon: 'totalEnergy', tone: 'blue' }
 ])
-const rightStatusMetrics = computed(() => [
-  { label: '网关在线率', value: `${clampValue(currentDeviceHealth.value.onlineRate + 4, 92, 99)}%`, icon: 'gateway', tone: 'green' },
-  { label: '通信成功率', value: `${clampValue(currentDeviceHealth.value.onlineRate + 5, 94, 99)}%`, icon: 'signal', tone: 'cyan' }
-])
-const operationRows = computed(() => [
-  { label: '当前开启区域', value: `${Math.max(1, Math.round(currentControlStatus.value.powerOnPercent / 12))}个`, icon: 'shield', tone: 'gold' },
-  { label: '当前关闭区域', value: `${Math.max(1, Math.round((100 - currentControlStatus.value.powerOnPercent) / 18))}个`, icon: 'alarm', tone: 'warning' },
-  { label: '平均调光比例', value: `${currentControlStatus.value.brightness[0].value}%`, progress: currentControlStatus.value.brightness[0].value, icon: 'dim', tone: 'cyan' },
-  { label: '绿色通道状态', value: '正常', icon: 'route', tone: 'green' },
-  { label: '自动控制模式', value: currentControlStatus.value.autoPercent >= 70 ? '运行中' : '待优化', icon: 'auto', tone: 'green' },
-  { label: '今日策略执行', value: `${Math.max(88, currentDeviceHealth.value.total - currentDeviceHealth.value.offline)}次`, icon: 'signal', tone: 'blue' }
-])
+const deviceTypeRingStyle = computed(() => {
+  const { total, cu, gw } = dashboardDeviceStatus.value.inventory
+  const cuPercent = total > 0 ? (cu / total) * 100 : 0
+  const gwEndPercent = total > 0 ? Math.min(cuPercent + (gw / total) * 100, 100) : 0
+
+  return {
+    '--cu-percent': `${cuPercent}%`,
+    '--gw-end-percent': `${gwEndPercent}%`,
+    '--ring-cu-color': total > 0 ? '#77df79' : 'rgba(84, 118, 151, 0.48)',
+    '--ring-gw-color': total > 0 ? '#4398f6' : 'rgba(84, 118, 151, 0.48)',
+    '--ring-other-color': total > 0 ? '#ffb347' : 'rgba(84, 118, 151, 0.48)'
+  }
+})
+const connectivityMetrics = computed(() => {
+  const connectivity = dashboardDeviceStatus.value.connectivity
+  return [
+    { label: '在线设备', value: connectivity.available ? `${connectivity.online} 台` : '未接入', tone: 'online' },
+    { label: '离线设备', value: connectivity.available ? `${connectivity.offline} 台` : '未接入', tone: 'offline' },
+    { label: '在线率', value: connectivity.available ? `${connectivity.onlineRate}%` : '暂无数据', tone: 'rate' }
+  ]
+})
+const alarmMetrics = computed(() => {
+  const unavailable = Boolean(dashboardDeviceStatus.value.errors.alarms)
+  const alarms = dashboardDeviceStatus.value.alarms
+  return [
+    { label: '告警总数', value: unavailable ? '--' : alarms.total, tone: 'total' },
+    { label: '待处理', value: unavailable ? '--' : alarms.pending, tone: 'pending' },
+    { label: '已处理', value: unavailable ? '--' : alarms.processed, tone: 'processed' },
+    { label: '已关闭', value: unavailable ? '--' : alarms.closed, tone: 'closed' }
+  ]
+})
 const activePicker = ref(null)
 const popupAreaFloor = ref('')
 
@@ -441,7 +526,18 @@ const updateEnergyChart = () => {
   energyChartInstance.setOption({
     tooltip: { trigger: 'axis', backgroundColor: 'rgba(7,24,42,0.96)', borderColor: 'rgba(85,216,255,0.34)', textStyle: { color: '#e7f2ff' } },
     grid: { left: '3%', right: '3%', bottom: '3%', top: '14%', containLabel: true },
-    legend: { data: ['标准值', '当前值', '节约率'], textStyle: { color: '#c1d3e7', fontSize: 11 }, top: 0, right: 0, itemWidth: 12, itemHeight: 8 },
+    legend: {
+      type: 'plain',
+      orient: 'horizontal',
+      data: ['标准值', '当前值', '节约率'],
+      textStyle: { color: '#c1d3e7', fontSize: 10 },
+      top: 0,
+      right: 8,
+      width: 230,
+      itemWidth: 11,
+      itemHeight: 7,
+      itemGap: 10
+    },
     xAxis: { type: 'category', data: chartData.xAxisData, axisLine: { lineStyle: { color: 'rgba(105,176,235,0.24)' } }, axisLabel: { color: '#8fa8c1', fontSize: 10 } },
     yAxis: [
       { type: 'value', name: 'kWh', nameTextStyle: { color: '#8fa8c1', fontSize: 10 }, axisLine: { show: false }, splitLine: { lineStyle: { color: 'rgba(105,176,235,0.10)' } }, axisLabel: { color: '#8fa8c1', fontSize: 10 } },
@@ -468,7 +564,7 @@ const updateTrendChart = () => {
       {
         name: '照明能耗',
         type: 'line',
-        data: chartData.cu,
+        data: chartData.actualKWh,
         itemStyle: { color: '#55d8ff' },
         lineStyle: { width: 2.8, color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#4d9fff' }, { offset: 0.55, color: '#55d8ff' }, { offset: 1, color: '#5ee79a' }]) },
         areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(85, 216, 255, 0.20)' }, { offset: 1, color: 'rgba(85, 216, 255, 0.01)' }]) },
@@ -490,13 +586,57 @@ const initTrendChart = () => {
 }
 const changeFilter = (value) => { selectedFilter.value = value }
 const handleResize = () => { energyChartInstance?.resize(); trendChartInstance?.resize() }
-watch([selectedFilter, currentSceneKey], () => { updateEnergyChart(); updateTrendChart() })
+watch([selectedFilter, currentSceneKey, dashboardEnergy], () => { updateEnergyChart(); updateTrendChart() })
+
+const refreshDashboardEnergy = async () => {
+  if (energyRequestActive) return
+  energyRequestActive = true
+  energyLoading.value = true
+  energyError.value = ''
+
+  try {
+    const nextEnergy = await loadDashboardEnergy()
+    if (!dashboardDisposed) dashboardEnergy.value = nextEnergy
+  } catch (error) {
+    if (!dashboardDisposed) {
+      dashboardEnergy.value = createEmptyDashboardEnergy()
+      energyError.value = error?.message || '能耗数据加载失败'
+    }
+  } finally {
+    energyRequestActive = false
+    if (!dashboardDisposed) energyLoading.value = false
+  }
+}
+
+const refreshDashboardDeviceStatus = async () => {
+  if (deviceStatusRequestActive) return
+  deviceStatusRequestActive = true
+  deviceStatusLoading.value = true
+
+  try {
+    const nextStatus = await loadDashboardDeviceStatus({ mapId: 'floor1' })
+    if (!dashboardDisposed) dashboardDeviceStatus.value = nextStatus
+  } finally {
+    deviceStatusRequestActive = false
+    if (!dashboardDisposed) deviceStatusLoading.value = false
+  }
+}
 
 onMounted(() => {
+  dashboardDisposed = false
+  refreshDashboardEnergy()
+  refreshDashboardDeviceStatus()
+  energyRefreshTimer = window.setInterval(refreshDashboardEnergy, 5 * 60_000)
+  deviceStatusRefreshTimer = window.setInterval(refreshDashboardDeviceStatus, 60_000)
   setTimeout(() => { initEnergyChart(); initTrendChart() }, 100)
   window.addEventListener('resize', handleResize)
 })
 onUnmounted(() => {
+  dashboardDisposed = true
+  if (energyRefreshTimer) window.clearInterval(energyRefreshTimer)
+  if (deviceStatusRefreshTimer) window.clearInterval(deviceStatusRefreshTimer)
+  energyRefreshTimer = null
+  deviceStatusRefreshTimer = null
   window.removeEventListener('resize', handleResize)
   energyChartInstance?.dispose()
   trendChartInstance?.dispose()
@@ -563,6 +703,8 @@ onUnmounted(() => {
 .filter-btn { padding: 7px 16px; background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03)); border: 1px solid rgba(186, 214, 235, 0.16); border-radius: 999px; color: rgba(234, 243, 252, 0.7); font-size: 12px; cursor: pointer; transition: all 0.3s ease; box-shadow: inset 0 1px 0 rgba(255,255,255,0.08); }
 .filter-btn:hover { border-color: rgba(186, 214, 235, 0.28); color: var(--text-1); }
 .filter-btn.active { background: linear-gradient(135deg, rgba(255, 203, 114, 0.96), rgba(143, 232, 139, 0.9)); border-color: rgba(255, 232, 177, 0.48); color: #102033; box-shadow: 0 8px 18px rgba(5, 13, 24, 0.12); }
+.energy-api-status { flex: 0 0 auto; margin-bottom: 6px; color: rgba(181, 215, 239, 0.82); font-size: 12px; text-align: center; }
+.energy-api-status.error { color: #ffb36b; }
 .energy-chart { width: 100%; height: 100%; flex: 1; }
 .center-section { position: relative; display: grid; grid-template-rows: auto 1fr minmax(360px, 42%); gap: 16px; padding-top: 6px; min-height: 0; }
 .center-section::before {
@@ -992,9 +1134,26 @@ onUnmounted(() => {
 
 .kpi-card-v3 {
   border-width: 1.5px;
-  box-shadow: inset 0 1px 0 rgba(215, 245, 255, 0.2), inset 0 0 34px color-mix(in srgb, var(--kpi-main) 9%, transparent), 0 0 22px color-mix(in srgb, var(--kpi-main) 27%, transparent), 0 18px 34px rgba(0, 4, 18, 0.32);
+  border-color: color-mix(in srgb, var(--kpi-main) 72%, rgba(219, 244, 255, 0.78));
+  box-shadow: inset 0 1px 0 rgba(215, 245, 255, 0.2), inset 0 0 0 1px color-mix(in srgb, var(--kpi-main) 28%, transparent), inset 0 0 34px color-mix(in srgb, var(--kpi-main) 16%, transparent), 0 0 0 1px color-mix(in srgb, var(--kpi-main) 30%, transparent), 0 0 18px color-mix(in srgb, var(--kpi-main) 38%, transparent), 0 18px 34px rgba(0, 4, 18, 0.32);
 }
-.kpi-card-v3::after { box-shadow: inset 0 0 34px color-mix(in srgb, var(--kpi-main) 13%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--kpi-main) 18%, transparent); }
+
+/* KPI visual system: bright frame with four HUD-style corner brackets. */
+.kpi-card-v3::after {
+  inset: 0;
+  border-radius: 8px;
+  z-index: 2;
+  background:
+    linear-gradient(90deg, var(--kpi-main), color-mix(in srgb, var(--kpi-main) 12%, transparent)) left top / 54px 2px no-repeat,
+    linear-gradient(180deg, var(--kpi-main), color-mix(in srgb, var(--kpi-main) 12%, transparent)) left top / 2px 54px no-repeat,
+    linear-gradient(270deg, var(--kpi-main), color-mix(in srgb, var(--kpi-main) 12%, transparent)) right top / 54px 2px no-repeat,
+    linear-gradient(180deg, var(--kpi-main), color-mix(in srgb, var(--kpi-main) 12%, transparent)) right top / 2px 54px no-repeat,
+    linear-gradient(90deg, var(--kpi-main), color-mix(in srgb, var(--kpi-main) 12%, transparent)) left bottom / 54px 2px no-repeat,
+    linear-gradient(0deg, var(--kpi-main), color-mix(in srgb, var(--kpi-main) 12%, transparent)) left bottom / 2px 54px no-repeat,
+    linear-gradient(270deg, var(--kpi-main), color-mix(in srgb, var(--kpi-main) 12%, transparent)) right bottom / 54px 2px no-repeat,
+    linear-gradient(0deg, var(--kpi-main), color-mix(in srgb, var(--kpi-main) 12%, transparent)) right bottom / 2px 54px no-repeat;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--kpi-main) 56%, transparent));
+}
 .kpi-icon-orb {
   width: 118px;
   height: 118px;
@@ -1023,6 +1182,10 @@ onUnmounted(() => {
 .kpi-wave .wave-secondary { stroke-width: 1; opacity: 0.54; }
 .kpi-wave circle { fill: var(--kpi-main); stroke: rgba(255,255,255,0.52); stroke-width: 0.6; filter: drop-shadow(0 0 4px var(--kpi-main)); }
 .kpi-foot { border-top-color: color-mix(in srgb, var(--kpi-main) 17%, transparent); }
+.kpi-foot { justify-content: center; }
+.kpi-foot strong { text-align: center; }
+.main-energy-card .filter-buttons { margin: 0 0 0 auto; gap: 6px; }
+.main-energy-card .filter-btn { min-height: 26px; padding: 4px 11px; font-size: 11px; }
 
 .status-overview { grid-template-columns: 204px minmax(0, 1fr); min-height: 220px; }
 .status-ring {
@@ -1040,4 +1203,191 @@ onUnmounted(() => {
 .status-ring-core span { margin-bottom: 7px; font-size: 15px; }
 .status-ring-core strong { font-size: 44px; color: #68e183; text-shadow: 0 0 12px rgba(90, 226, 123, 0.34); }
 .status-legend { gap: 24px; }
+
+/* Dashboard right column refinement. */
+.right-section { display: block; min-height: 0; }
+.device-health-card {
+  height: 100%;
+  min-height: 0;
+  border-color: rgba(31, 116, 198, 0.34) !important;
+  background: linear-gradient(180deg, rgba(9, 43, 83, 0.92), rgba(4, 27, 58, 0.95)) !important;
+}
+.device-health-card :deep(.card-header) { min-height: 46px; padding-top: 11px; padding-bottom: 10px; }
+.device-health-card :deep(.title-bar) {
+  width: 9px;
+  height: 9px;
+  background: #68e68b;
+  box-shadow: 0 0 0 4px rgba(76, 221, 135, 0.1), 0 0 12px rgba(76, 221, 135, 0.4);
+}
+.device-health-card :deep(.title-text) { color: rgba(240, 249, 255, 0.98); font-size: 17px; font-weight: 650; }
+.device-health-card :deep(.card-body) {
+  min-height: 0;
+  padding: 10px 18px 14px;
+  gap: 0;
+  overflow: hidden;
+}
+.device-health-loading { flex: 1; display: grid; place-items: center; color: rgba(183, 210, 234, 0.68); font-size: 13px; }
+.inventory-section {
+  flex: 1.04;
+  min-height: 232px;
+  display: grid;
+  grid-template-columns: 214px minmax(0, 1fr);
+  align-items: center;
+  gap: 34px;
+  padding: 6px 6px 10px 0;
+  border-bottom: 1px solid rgba(84, 151, 205, 0.16);
+}
+.inventory-ring {
+  position: relative;
+  isolation: isolate;
+  width: 200px;
+  height: 200px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto;
+  border: 1px solid rgba(133, 235, 139, 0.56);
+  border-radius: 50%;
+  background: conic-gradient(from -6deg, var(--ring-cu-color) 0 var(--cu-percent), var(--ring-gw-color) var(--cu-percent) var(--gw-end-percent), var(--ring-other-color) var(--gw-end-percent) 100%);
+  box-shadow: 0 6px 18px rgba(0, 13, 35, 0.24), inset 0 2px 4px rgba(238, 255, 227, 0.44), inset 0 -5px 10px rgba(23, 102, 54, 0.52);
+}
+.inventory-ring::before {
+  display: none;
+}
+.inventory-ring::after {
+  display: none;
+}
+.inventory-ring-core {
+  position: relative;
+  z-index: 1;
+  width: 122px;
+  height: 122px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border: 1px solid rgba(130, 207, 180, 0.2);
+  border-radius: 50%;
+  background: #031938;
+  box-shadow: 0 0 0 1px rgba(0, 12, 37, 0.3);
+}
+.inventory-ring-core strong {
+  color: #79e481;
+  font-family: Bahnschrift, 'Arial Narrow', 'Microsoft YaHei', sans-serif;
+  font-size: 40px;
+  font-weight: 680;
+  text-shadow: none;
+}
+.inventory-ring-core span { margin-top: 8px; color: rgba(210, 233, 226, 0.78); font-size: 12px; }
+.inventory-breakdown { min-width: 0; padding-left: 2px; }
+.inventory-row {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid rgba(84, 151, 205, 0.12);
+  color: rgba(203, 226, 245, 0.78);
+  font-size: 13px;
+}
+.inventory-row:last-child { border-bottom: 0; }
+.inventory-row i { width: 8px; height: 8px; border-radius: 50%; background: #55dfaa; box-shadow: 0 0 8px rgba(85, 223, 170, 0.45); }
+.inventory-row.gw i { background: #4d9fff; box-shadow: 0 0 8px rgba(77, 159, 255, 0.45); }
+.inventory-row.region i { background: #ffc65f; box-shadow: 0 0 7px rgba(255, 198, 95, 0.25); }
+.inventory-row strong { color: #55dfaa; font-size: 24px; font-weight: 650; text-align: right; }
+.inventory-row.gw strong { color: #64adff; }
+.inventory-row.region strong { color: #ffc65f; }
+.device-section-heading {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: rgba(230, 243, 253, 0.94);
+  font-size: 14px;
+  font-weight: 650;
+}
+.connectivity-section {
+  flex: 1;
+  min-height: 226px;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0 14px;
+  border-bottom: 1px solid rgba(84, 151, 205, 0.16);
+}
+.connectivity-badge {
+  padding: 3px 8px;
+  border-radius: 4px;
+  color: rgba(170, 196, 220, 0.78);
+  background: rgba(94, 123, 153, 0.16);
+  font-size: 10px;
+  font-weight: 400;
+}
+.connectivity-badge.available { color: var(--success); background: rgba(55, 204, 122, 0.12); }
+.connectivity-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: repeat(3, minmax(54px, 1fr));
+  gap: 9px;
+  margin-top: 8px;
+}
+.connectivity-item {
+  min-width: 0;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 18px;
+  border: 1px solid rgba(55, 132, 201, 0.2);
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(12, 54, 99, 0.72), rgba(8, 41, 80, 0.48));
+}
+.connectivity-label { display: flex; align-items: center; gap: 12px; color: rgba(207, 228, 246, 0.84); font-size: 15px; }
+.connectivity-label i,
+.alarm-summary-item span i { width: 8px; height: 8px; border-radius: 50%; background: #55dfaa; box-shadow: 0 0 7px rgba(85, 223, 170, 0.34); }
+.connectivity-item strong { color: #55dfaa; font-size: 20px; font-weight: 650; }
+.connectivity-item.offline .connectivity-label i { background: #7692ad; box-shadow: none; }
+.connectivity-item.offline strong { color: rgba(164, 190, 214, 0.82); }
+.connectivity-item.rate .connectivity-label i { background: #51d8ef; box-shadow: 0 0 7px rgba(81, 216, 239, 0.34); }
+.connectivity-item.rate strong { color: #65dcf1; }
+.alarm-summary-section {
+  flex: 1.04;
+  min-height: 236px;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0 0;
+}
+.alarm-summary-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(90px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+.alarm-summary-item {
+  min-width: 0;
+  min-height: 90px;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid rgba(55, 132, 201, 0.2);
+  border-radius: 6px;
+  background: linear-gradient(145deg, rgba(12, 54, 99, 0.76), rgba(7, 38, 75, 0.58));
+}
+.alarm-summary-item span { display: flex; align-items: center; gap: 9px; color: rgba(196, 220, 240, 0.8); font-size: 14px; }
+.alarm-summary-item strong { color: #ffab54; font-size: 36px; font-weight: 680; line-height: 1; text-align: center; }
+.alarm-summary-item.total span i { background: #ffab54; box-shadow: 0 0 7px rgba(255, 171, 84, 0.3); }
+.alarm-summary-item.pending span i { background: #ffd166; box-shadow: 0 0 7px rgba(255, 209, 102, 0.3); }
+.alarm-summary-item.pending strong { color: #ffd166; }
+.alarm-summary-item.processed span i { background: #55dfaa; }
+.alarm-summary-item.processed strong { color: #55dfaa; }
+.alarm-summary-item.closed span i { background: #7893ad; box-shadow: none; }
+.alarm-summary-item.closed strong { color: rgba(155, 183, 207, 0.8); }
+.device-source-warning { padding: 7px 0; color: rgba(255, 187, 102, 0.9); font-size: 11px; }
 </style>

@@ -76,7 +76,7 @@
 
       <DataCard title="系统日志" class="logs-card">
         <template #header-extra>
-          <span class="connection-badge">Mock 数据已连接</span>
+          <span class="connection-badge">{{ connectionText }}</span>
         </template>
 
         <div class="logs-header">
@@ -99,7 +99,7 @@
               <span class="stat-value">{{ alarmTotal }}</span>
               <span class="stat-meta">
                 <span class="stat-label">告警总数</span>
-                <span class="stat-scope">当前 Mock</span>
+                <span class="stat-scope">全部数据</span>
               </span>
             </div>
           </div>
@@ -335,7 +335,8 @@
         <div class="modal-body">
           <div v-if="alarmModalLoading" class="state-panel modal-state">告警详情加载中...</div>
           <div v-else-if="alarmModalError" class="state-panel error-state modal-state">
-            {{ alarmModalError }}
+            <span>{{ alarmModalError }}</span>
+            <button type="button" class="inline-btn" @click="retryAlarmDetail">重新加载</button>
           </div>
           <template v-else-if="alarmDetail">
             <div class="alarm-summary-head">
@@ -444,6 +445,7 @@ import {
   getAlarmActions,
   getAlarmDetail,
   handleAlarm,
+  isSystemLogsMockMode,
   queryAlarms,
   queryOperationLogs,
 } from "../services/systemLogsApi.js";
@@ -527,6 +529,12 @@ let alarmScrollTimer = null;
 let alarmScrollResumeTimer = null;
 
 const pageRecordCount = computed(() => pageLogs.value.length);
+const connectionText = computed(() => {
+  if (isSystemLogsMockMode) return "Mock 数据已连接";
+  if (logsError.value || alarmsError.value) return "接口连接失败";
+  if (logsLoading.value || alarmsLoading.value) return "接口连接中...";
+  return "接口已连接";
+});
 const totalPages = computed(() =>
   Math.max(1, Math.ceil(totalRecords.value / pageSize.value)),
 );
@@ -597,7 +605,7 @@ const logCompositionRingStyle = computed(() => {
 });
 
 const alarmOverview = computed(() => {
-  const total = alarms.value.length;
+  const total = alarmTotal.value;
   const processed = alarms.value.filter((alarm) => alarm.status === "processed").length;
   const closed = alarms.value.filter((alarm) => alarm.status === "closed").length;
   return {
@@ -648,14 +656,13 @@ async function loadLogs(page = currentPage.value) {
   logsError.value = "";
   try {
     const response = await queryOperationLogs({ page, pageSize: pageSize.value });
-    if (response.success !== true) throw new Error(response.message || "Mock 日志请求失败");
-    currentPage.value = response.page;
-    pageSize.value = response.pageSize;
-    totalRecords.value = response.total;
+    currentPage.value = Number(response.page || page);
+    pageSize.value = Number(response.pageSize || pageSize.value);
+    totalRecords.value = Number(response.total || 0);
     pageLogs.value = response.data.map(adaptOperationLog);
   } catch (error) {
     pageLogs.value = [];
-    logsError.value = error instanceof Error ? error.message : "Mock 日志请求失败";
+    logsError.value = "系统日志加载失败，请稍后重试";
   } finally {
     logsLoading.value = false;
   }
@@ -665,24 +672,24 @@ async function loadAlarms() {
   alarmsLoading.value = true;
   alarmsError.value = "";
   try {
-    const response = await queryAlarms({ page: 1, pageSize: 20 });
-    if (response.success !== true) throw new Error(response.message || "Mock 告警请求失败");
+    const response = await queryAlarms({});
     alarms.value = response.data.map(adaptAlarm);
-    alarmTotal.value = response.total;
+    alarmTotal.value = Number(response.total || response.data.length);
   } catch (error) {
     alarms.value = [];
     alarmTotal.value = 0;
-    alarmsError.value = error instanceof Error ? error.message : "Mock 告警请求失败";
+    alarmsError.value = "告警数据加载失败，请稍后重试";
   } finally {
     alarmsLoading.value = false;
   }
 }
 
 async function refreshLogs() {
+  if (refreshing.value) return;
   refreshing.value = true;
-  await loadLogs(1);
+  await Promise.all([loadLogs(currentPage.value), loadAlarms()]);
   refreshing.value = false;
-  if (!logsError.value) showFeedback("当前页 Mock 日志已刷新");
+  if (!logsError.value && !alarmsError.value) showFeedback("当前页日志和告警已刷新");
 }
 
 function changePage(page) {
@@ -744,23 +751,23 @@ async function openAlarmDetail(alarm) {
   operationMessage.value = "";
   alarmModalLoading.value = true;
   try {
-    const [detailResponse, actionsResponse] = await Promise.all([
-      getAlarmDetail(alarm.id),
-      getAlarmActions(alarm.id),
-    ]);
-    if (detailResponse.success !== true || !detailResponse.alarm) {
-      throw new Error(detailResponse.message || "Mock 告警详情请求失败");
-    }
-    if (actionsResponse.success !== true) {
-      throw new Error(actionsResponse.message || "Mock ACTION 请求失败");
+    const detailResponse = await getAlarmDetail(alarm.id);
+    let actions = detailResponse.actions;
+    if (!Array.isArray(actions)) {
+      const actionsResponse = await getAlarmActions(alarm.id);
+      actions = actionsResponse.data;
     }
     alarmDetail.value = adaptAlarm(detailResponse.alarm);
-    alarmActions.value = actionsResponse.data.map(adaptAlarmAction);
+    alarmActions.value = actions.map(adaptAlarmAction);
   } catch (error) {
-    alarmModalError.value = error instanceof Error ? error.message : "Mock 告警详情请求失败";
+    alarmModalError.value = "告警详情加载失败，请稍后重试";
   } finally {
     alarmModalLoading.value = false;
   }
+}
+
+function retryAlarmDetail() {
+  if (selectedAlarm.value) openAlarmDetail(selectedAlarm.value);
 }
 
 function closeAlarmModal() {
@@ -772,7 +779,25 @@ function closeAlarmModal() {
 }
 
 function mapOperationMessage(message) {
-  return message === "Already processed" ? "该告警已处理，请刷新列表" : message;
+  return message === "Already processed" ? "该告警已处理，请刷新列表" : message || "业务请求失败";
+}
+
+function readCurrentOperatorName() {
+  const storageKeys = ["currentUser", "userInfo", "user", "username"];
+  for (const storage of [window.localStorage, window.sessionStorage]) {
+    for (const key of storageKeys) {
+      const value = storage.getItem(key);
+      if (!value) continue;
+      try {
+        const parsed = JSON.parse(value);
+        const name = parsed?.username || parsed?.userName || parsed?.name || parsed?.account;
+        if (name) return String(name);
+      } catch {
+        if (key === "username") return value;
+      }
+    }
+  }
+  return document.querySelector(".header .user span")?.textContent?.trim() || "用户";
 }
 
 async function reloadAlarmAfterOperation() {
@@ -787,7 +812,14 @@ async function submitHandleAlarm() {
   operationSubmitting.value = true;
   operationMessage.value = "";
   try {
-    const response = await handleAlarm({ eventId: alarmDetail.value.id });
+    const response = await handleAlarm({
+      eventId: alarmDetail.value.id,
+      actionType: "Repair",
+      actionMessage: "系统日志页面处理告警",
+      resolveType: "",
+      resolveResult: "",
+      operatorName: readCurrentOperatorName(),
+    });
     if (response.success !== true) {
       operationMessageType.value = "error";
       operationMessage.value = mapOperationMessage(response.message || "处理失败");
@@ -798,7 +830,7 @@ async function submitHandleAlarm() {
     await reloadAlarmAfterOperation();
   } catch (error) {
     operationMessageType.value = "error";
-    operationMessage.value = error instanceof Error ? error.message : "处理失败";
+    operationMessage.value = `处理告警失败：${mapOperationMessage(error?.message)}`;
   } finally {
     operationSubmitting.value = false;
   }
@@ -821,7 +853,7 @@ async function submitCloseAlarm() {
     await reloadAlarmAfterOperation();
   } catch (error) {
     operationMessageType.value = "error";
-    operationMessage.value = error instanceof Error ? error.message : "关闭失败";
+    operationMessage.value = `关闭告警失败：${mapOperationMessage(error?.message)}`;
   } finally {
     operationSubmitting.value = false;
   }

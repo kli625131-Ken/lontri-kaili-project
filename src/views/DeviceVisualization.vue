@@ -543,6 +543,7 @@
               @close="closeConfigDrawer"
               @workflow-action="handleWorkflowAction"
               @save-cu-params="handleSaveCuParams"
+              @delete-region="deleteRegion(configDrawerTarget)"
             />
             <aside
               v-else-if="activeDrawer"
@@ -905,6 +906,19 @@
               </div>
             </aside>
           </transition>
+
+          <MapRegionDialog
+            v-if="pendingCreatedRegion || pendingDeleteRegion"
+            :mode="pendingCreatedRegion ? 'create' : 'delete'"
+            :region="pendingCreatedRegion || pendingDeleteRegion"
+            :devices="pendingCreatedRegionDevices"
+            :group-id="pendingCreatedGroupId"
+            :gateway-name="pendingCreatedGatewayName"
+            :busy="regionDialogBusy"
+            :error="regionDialogError"
+            @cancel="cancelRegionDialog"
+            @confirm="confirmRegionDialog"
+          />
         </div>
       </DataCard>
     </div>
@@ -919,6 +933,7 @@ import DeviceParameterConfigPanel from '../components/deviceMap/DeviceParameterC
 import MapConfigDrawer from '../components/deviceMap/MapConfigDrawer.vue'
 import MapEditToolbar from '../components/deviceMap/MapEditToolbar.vue'
 import MapModeSwitch from '../components/deviceMap/MapModeSwitch.vue'
+import MapRegionDialog from '../components/deviceMap/MapRegionDialog.vue'
 import { DEVICE_MAP_BRIGHTNESS_OPTIONS } from '../components/deviceMap/deviceMapOptions'
 import cuIconUrl from '../assets/images/devices/CU.png'
 import gwIconUrl from '../assets/images/devices/GW.png'
@@ -959,6 +974,7 @@ import {
   setOptionalStep,
   switchAndVerifyScene,
   syncRegionMembers,
+  updateScene,
   verifyGroupControl,
   verifyPanel
 } from '../services/deviceMapWorkflowService'
@@ -1000,6 +1016,10 @@ const configDrawerTab = ref('base')
 const configDrawerOpenSeq = ref(0)
 const regionWorkflow = ref(null)
 const workflowBusy = ref(false)
+const pendingCreatedRegion = ref(null)
+const pendingDeleteRegion = ref(null)
+const regionDialogBusy = ref(false)
+const regionDialogError = ref('')
 const validationMessages = ref([])
 const deviceInputErrors = ref({})
 const gatewayDrawerTab = ref('scene')
@@ -1094,6 +1114,26 @@ const operationPrimaryEnabled = computed(() => {
 })
 const configDrawerVisible = computed(() => isConfigMode.value && !!configDrawerTarget.value)
 const configDrawerKey = computed(() => `${configDrawerTarget.value?.id || 'map'}-${configDrawerTab.value}-${configDrawerOpenSeq.value}`)
+const pendingCreatedRegionDevices = computed(() => {
+  const memberIds = pendingCreatedRegion.value?.memberIds || []
+  return cuDevices.value.filter((device) => memberIds.includes(device.id))
+})
+const pendingCreatedGroupId = computed(() => (
+  pendingCreatedRegion.value?.code || String(regions.value.length + 1).padStart(4, '0')
+))
+const pendingCreatedGatewayName = computed(() => {
+  const sourceDevice = pendingCreatedRegionDevices.value[0]
+  const gatewayKey = sourceDevice?.gatewayId || sourceDevice?.sourceFields?.GWNO || ''
+  if (!gatewayKey) return '未识别'
+  const gateway = gwDevices.value.find((device) => [
+    device.id,
+    device.shortName,
+    device.name,
+    device.gatewayId,
+    device.sourceFields?.GWNO
+  ].includes(gatewayKey))
+  return gateway?.shortName || gateway?.name || gatewayKey
+})
 
 const mapSvgClasses = computed(() => ({
   'is-zoomed': zoomLevel.value > 1.4,
@@ -1315,6 +1355,7 @@ function handleMapModeChange(mode) {
   }
 
   mapMode.value = mode
+  cancelRegionDialog()
   hoveredRegionId.value = ''
   if (editDragState.value) {
     cancelActiveEditDrag('已取消编辑')
@@ -1520,6 +1561,10 @@ function resetMapInteractionState() {
   editDragState.value = null
   editHistory.value = []
   editingRegionId.value = ''
+  pendingCreatedRegion.value = null
+  pendingDeleteRegion.value = null
+  regionDialogBusy.value = false
+  regionDialogError.value = ''
   closeConfigDrawer()
   if (mapMeta.value) currentViewBox.value = { ...originalViewBox.value }
 }
@@ -2621,6 +2666,11 @@ function stopShapeDrawingListeners() {
 }
 
 function handleMapKeydown(event) {
+  if (event.key === 'Escape' && (pendingCreatedRegion.value || pendingDeleteRegion.value)) {
+    event.preventDefault()
+    cancelRegionDialog()
+    return
+  }
   if (isTextEditingTarget(event.target)) return
 
   if (isConfigMode.value) {
@@ -2896,17 +2946,14 @@ function finishDrawing() {
     return
   }
 
-  const region = createEditableRegion('POLYGON', {
+  createEditableRegion('POLYGON', {
     points: drawingPoints.value.map((point) => ({ ...point }))
   })
   drawMode.value = false
   clearDraft()
-  openConfigDrawer(region, 'area', 'workbench')
-  commitDrawerMessage('待配置：请创建区域组')
 }
 
 function createEditableRegion(shapeType, geometry) {
-  recordMapHistory()
   const points = shapeToPoints(shapeType, geometry)
   const region = createRegion(
     `新区域-${regions.value.length + 1}`,
@@ -2919,12 +2966,9 @@ function createEditableRegion(shapeType, geometry) {
     }
   )
 
-  regions.value = recalculateRegions([...regions.value, region])
-  draftState.value = {
-    ...draftState.value,
-    dirty: true
-  }
-  openConfigDrawer(region, 'area', 'workbench')
+  pendingCreatedRegion.value = region
+  pendingDeleteRegion.value = null
+  regionDialogError.value = ''
   return region
 }
 
@@ -3244,23 +3288,72 @@ function recalculateRegions(regionList) {
 }
 
 function deleteRegion(region) {
-  const confirmed = window.confirm(`确认删除区域 ${region.name || region.id}？删除后会解除该区域的：区域组、场景、面板绑定、订阅配置、参数配置；不会删除设备点位。`)
-  if (!confirmed) return
-  recordMapHistory()
-  regions.value = regions.value.filter((item) => item.id !== region.id)
-  if (focusedRegionId.value === region.id) focusedRegionId.value = ''
-  if (configDrawerTarget.value?.id === region.id) closeConfigDrawer()
-  void deleteRegionWorkflow(region.id)
-  draftState.value = {
-    ...draftState.value,
-    dirty: true,
-    areaGroups: draftState.value.areaGroups.filter((group) => group.regionId !== region.id),
-    scenes: (draftState.value.scenes || []).filter((scene) => scene.regionId !== region.id),
-    panelBindings: (draftState.value.panelBindings || []).filter((binding) => binding.regionId !== region.id),
-    subscriptions: (draftState.value.subscriptions || []).filter((config) => config.regionId !== region.id),
-    cuParamConfigs: (draftState.value.cuParamConfigs || []).filter((config) => config.regionId !== region.id)
+  if (!region?.id) return
+  pendingCreatedRegion.value = null
+  pendingDeleteRegion.value = region
+  regionDialogError.value = ''
+}
+
+function cancelRegionDialog() {
+  pendingCreatedRegion.value = null
+  pendingDeleteRegion.value = null
+  regionDialogBusy.value = false
+  regionDialogError.value = ''
+}
+
+async function confirmRegionDialog(payload = {}) {
+  if (pendingCreatedRegion.value) {
+    const name = String(payload.name || '').trim()
+    if (!name) {
+      regionDialogError.value = '请输入区域名称'
+      return
+    }
+    if (regions.value.some((region) => region.name === name)) {
+      regionDialogError.value = '区域名称已存在，请重新输入'
+      return
+    }
+
+    const region = {
+      ...pendingCreatedRegion.value,
+      name,
+      code: pendingCreatedRegion.value.code || pendingCreatedGroupId.value
+    }
+    recordMapHistory()
+    regions.value = recalculateRegions([...regions.value, region])
+    draftState.value = {
+      ...draftState.value,
+      dirty: true
+    }
+    pendingCreatedRegion.value = null
+    regionDialogError.value = ''
+    openConfigDrawer(region, 'area', 'region')
+    commitDrawerMessage(`已创建区域 ${region.name}`)
+    return
   }
-  commitDrawerMessage(`已删除区域 ${region.name || region.id}`)
+
+  const region = pendingDeleteRegion.value
+  if (!region?.id || regionDialogBusy.value) return
+  regionDialogBusy.value = true
+  try {
+    recordMapHistory()
+    regions.value = regions.value.filter((item) => item.id !== region.id)
+    if (focusedRegionId.value === region.id) focusedRegionId.value = ''
+    if (configDrawerTarget.value?.id === region.id) closeConfigDrawer()
+    await deleteRegionWorkflow(region.id)
+    draftState.value = {
+      ...draftState.value,
+      dirty: true,
+      areaGroups: draftState.value.areaGroups.filter((group) => group.regionId !== region.id),
+      scenes: (draftState.value.scenes || []).filter((scene) => scene.regionId !== region.id),
+      panelBindings: (draftState.value.panelBindings || []).filter((binding) => binding.regionId !== region.id),
+      subscriptions: (draftState.value.subscriptions || []).filter((config) => config.regionId !== region.id),
+      cuParamConfigs: (draftState.value.cuParamConfigs || []).filter((config) => config.regionId !== region.id)
+    }
+    pendingDeleteRegion.value = null
+    commitDrawerMessage(`已删除区域 ${region.name || region.id}`)
+  } finally {
+    regionDialogBusy.value = false
+  }
 }
 
 function deleteDevice(device) {
@@ -3338,6 +3431,9 @@ async function handleWorkflowAction(action) {
         break
       case 'remove-scene':
         result = await removeCustomScene(region.id, action.sceneId)
+        break
+      case 'update-scene':
+        result = await updateScene(region.id, action.scene)
         break
       case 'verify-scene':
         result = await switchAndVerifyScene(region.id, action.sceneId, { onProgress })

@@ -7,7 +7,7 @@
       </div>
     </div>
     <nav class="header-nav">
-      <router-link v-for="item in navItems" :key="item.path" :to="item.path" :class="['nav-item', { active: $route.path === item.path }]">
+      <router-link v-for="item in visibleNavItems" :key="item.path" :to="item.path" :class="['nav-item', { active: $route.path === item.path }]">
         {{ item.title }}
       </router-link>
     </nav>
@@ -48,6 +48,9 @@ const navItems = [
   // { path: '/production-linkage', title: '生产联动' }
 
 ]
+
+const hiddenNavPaths = new Set(['/device-maintenance', '/user-management', '/parameter-config'])
+const visibleNavItems = navItems.filter((item) => !hiddenNavPaths.has(item.path))
 
 const currentDate = ref('')
 const currentTime = ref('')
