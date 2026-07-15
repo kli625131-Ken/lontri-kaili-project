@@ -49,7 +49,7 @@
       <section v-else class="region-dialog delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-region-title">
         <div class="danger-accent"></div>
         <div class="delete-content">
-          <div class="warning-icon" aria-hidden="true">!</div>
+          <div class="warning-icon fluent-icon" aria-hidden="true">{{ warningIcon }}</div>
           <div>
             <h2 id="delete-region-title">删除区域？</h2>
             <p>删除区域将同步删除其对应的组、场景、面板和联动订阅信息。设备点位将保留。确认删除？</p>
@@ -78,6 +78,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['cancel', 'confirm'])
+const warningIcon = '\uE7BA'
 const regionName = ref('')
 
 watch(() => props.region, (region) => {
@@ -117,6 +118,8 @@ function deviceIcon(device) {
   font-family: Inter, "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
 }
 
+.fluent-icon { font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets"; font-weight: 400; line-height: 1; }
+
 .create-dialog { width: min(448px, calc(100vw - 32px)); }
 .delete-dialog { width: min(380px, calc(100vw - 32px)); }
 .dialog-header { min-height: 58px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; border-bottom: 1px solid #e2e8f0; }
@@ -154,7 +157,7 @@ function deviceIcon(device) {
 .dialog-footer button:disabled { cursor: wait; opacity: .55; }
 .danger-accent { height: 4px; background: #f43f5e; }
 .delete-content { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 16px; padding: 26px 24px 24px; }
-.warning-icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: #ba1a1a; background: #ffdad6; font-size: 24px; font-weight: 700; }
+.warning-icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 8px; color: #ba1a1a; background: #ffdad6; font-size: 22px; }
 .delete-content p { margin: 8px 0 0; color: #434655; font-size: 14px; line-height: 1.65; }
 .delete-footer { padding-right: 24px; }
 

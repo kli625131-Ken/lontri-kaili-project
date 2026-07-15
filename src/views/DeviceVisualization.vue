@@ -547,9 +547,25 @@
             />
             <aside
               v-else-if="activeDrawer"
-              class="control-drawer"
-              :class="[`drawer-${activeDrawer.type}`, { 'config-side-drawer': isConfigMode }]"
+              :class="isConfigMode
+                ? ['stitch-device-drawer', `drawer-${activeDrawer.type}`]
+                : ['control-drawer', `drawer-${activeDrawer.type}`]"
             >
+              <nav v-if="isConfigMode && selectedGw" class="device-config-tabs" aria-label="网关配置" role="tablist">
+                <button
+                  v-for="tab in gatewayConfigTabs"
+                  :key="tab.value"
+                  type="button"
+                  role="tab"
+                  class="device-config-tab"
+                  :aria-selected="gatewayDrawerTab === tab.value"
+                  :class="{ active: gatewayDrawerTab === tab.value }"
+                  @click="gatewayDrawerTab = tab.value"
+                >
+                  {{ tab.label }}
+                </button>
+              </nav>
+
               <div class="drawer-head">
                 <div class="drawer-ident">
                   <div class="drawer-icon">{{ drawerIcon }}</div>
@@ -744,19 +760,6 @@
 
                 <template v-else-if="selectedGw">
                   <template v-if="isConfigMode">
-                    <nav class="device-config-tabs" aria-label="网关配置">
-                      <button
-                        v-for="tab in gatewayConfigTabs"
-                        :key="tab.value"
-                        type="button"
-                        class="device-config-tab"
-                        :class="{ active: gatewayDrawerTab === tab.value }"
-                        @click="gatewayDrawerTab = tab.value"
-                      >
-                        {{ tab.label }}
-                      </button>
-                    </nav>
-
                     <section v-if="gatewayDrawerTab === 'scene'" class="drawer-section">
                       <div class="section-head">
                         <span>场景控制</span>
@@ -1156,7 +1159,7 @@ const focusedRegionBounds = computed(() => {
   const bbox = getPointsBBox(focusedRegion.value.points)
   return { x: bbox.minX, y: bbox.minY, width: bbox.width, height: bbox.height }
 })
-const displayFocusedRegion = computed(() => (isConfigMode.value ? null : focusedRegion.value))
+const displayFocusedRegion = computed(() => focusedRegion.value)
 const hoveredRegion = computed(() => regions.value.find((region) => region.id === hoveredRegionId.value) || null)
 const configSelectedRegion = computed(() => {
   if (!isConfigMode.value) return null
@@ -2133,7 +2136,7 @@ function getDeviceVisibleBounds(device) {
 
 function getDeviceSelectionBounds(device) {
   const visible = getDeviceVisibleBounds(device)
-  const padding = device.type === 'gw' ? 0.9 : 0.65
+  const padding = device.type === 'gw' ? 0.35 : 0.25
   return expandDeviceBounds(visible, padding)
 }
 
@@ -2434,8 +2437,11 @@ async function handleConfigRegionClick(region) {
   }
 
   if (activeEditTool.value === 'select') {
+    const focused = await focusRegion(region)
+    if (!focused) return
+
     activeDrawer.value = null
-    focusedRegionId.value = ''
+    focusedRegionId.value = region.id
     editingRegionId.value = ''
     openConfigDrawer(region, 'area', 'workbench')
     commitDrawerMessage(`已打开 ${region.name} 配置`)
@@ -2672,6 +2678,12 @@ function handleMapKeydown(event) {
     return
   }
   if (isTextEditingTarget(event.target)) return
+
+  if (event.key === 'Escape' && focusedRegionId.value) {
+    event.preventDefault()
+    exitFocusedRegion()
+    return
+  }
 
   if (isConfigMode.value) {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.shiftKey) {
@@ -3038,6 +3050,7 @@ function clearFocusRegion() {
 
 function exitFocusedRegion() {
   closeDrawer()
+  if (isConfigMode.value) closeConfigDrawer()
   clearFocusRegion()
 }
 
@@ -3825,39 +3838,17 @@ function buildDeviceCodeLabelMap() {
 
   const fontSize = getDeviceCodeFontSize()
   const strokeWidth = getTextStrokeWidth()
-  const placedBoxes = []
-  const maxGeneralLabels = getMaxDeviceCodeLabels()
-  let generalLabelCount = 0
   const devices = [...focusedCodeDevices.value].sort((left, right) => {
-    const leftPriority = getDeviceLabelPriority(left)
-    const rightPriority = getDeviceLabelPriority(right)
-    return rightPriority - leftPriority || left.y - right.y || left.x - right.x
+    return left.y - right.y || left.x - right.x
   })
 
   devices.forEach((device) => {
     const text = getDeviceCode(device)
     if (!text) return
 
-    const priority = getDeviceLabelPriority(device)
-    if (!priority && generalLabelCount >= maxGeneralLabels) return
-
     const iconSize = getDeviceIconSize(device)
     const x = device.x
     const y = device.y + iconSize / 2 + fontSize * 0.55
-    const textWidth = estimateDeviceCodeWidth(text, fontSize)
-    const paddingX = fontSize * 1.8
-    const paddingY = fontSize * 0.9
-    const box = {
-      minX: x - textWidth / 2 - paddingX,
-      maxX: x + textWidth / 2 + paddingX,
-      minY: y - fontSize - paddingY,
-      maxY: y + paddingY * 0.8
-    }
-
-    if (!priority && placedBoxes.some((placedBox) => areBoxesOverlapping(box, placedBox))) return
-
-    placedBoxes.push(box)
-    if (!priority) generalLabelCount += 1
     labelMap.set(device.id, {
       x,
       y,
@@ -3868,34 +3859,6 @@ function buildDeviceCodeLabelMap() {
   })
 
   return labelMap
-}
-
-function getMaxDeviceCodeLabels() {
-  const deviceCount = focusedCodeDevices.value.length
-  if (deviceCount <= 18) return deviceCount
-  if (zoomLevel.value >= 4.2) return 32
-  if (zoomLevel.value >= 3) return 24
-  return 16
-}
-
-function getDeviceLabelPriority(device) {
-  if (hoveredDeviceId.value === device.id) return 2
-  if (isActiveDevice(device.type, device)) return 1
-  return 0
-}
-
-function estimateDeviceCodeWidth(text, fontSize) {
-  const wideCount = Array.from(text).filter((char) => char.charCodeAt(0) > 255).length
-  return text.length * fontSize * 0.56 + wideCount * fontSize * 0.28
-}
-
-function areBoxesOverlapping(left, right) {
-  return !(
-    left.maxX < right.minX ||
-    left.minX > right.maxX ||
-    left.maxY < right.minY ||
-    left.minY > right.maxY
-  )
 }
 
 function getDeviceCodeFontSize() {
@@ -5534,6 +5497,549 @@ function clamp(value, min, max) {
   }
 
   .metric-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+
+<style>
+.stitch-device-drawer {
+  --stitch-primary: #004ac6;
+  --stitch-primary-hover: #003ea8;
+  --stitch-text: #191c1e;
+  --stitch-text-secondary: #434655;
+  --stitch-label: #505f76;
+  --stitch-muted: #737686;
+  --stitch-border: #c3c6d7;
+  --stitch-border-soft: #e2e8f0;
+  --stitch-surface: #ffffff;
+  --stitch-surface-bright: #f7f9fb;
+  --stitch-surface-low: #f2f4f6;
+  --stitch-surface-container: #eceef0;
+  --stitch-success: #10b981;
+  --stitch-danger: #f43f5e;
+  --text-1: var(--stitch-text);
+  --text-2: var(--stitch-text-secondary);
+  --text-3: var(--stitch-muted);
+  --text-primary: var(--stitch-text);
+  --text-secondary: var(--stitch-text-secondary);
+  --text-tertiary: var(--stitch-muted);
+  --text-strong: var(--stitch-text);
+  --control-bg: var(--stitch-surface);
+  --control-bg-hover: var(--stitch-surface-low);
+  --border-subtle: var(--stitch-border-soft);
+  --border-default: var(--stitch-border);
+  --border-active: var(--stitch-primary);
+  --accent-blue: var(--stitch-primary);
+  --accent-cyan: var(--stitch-primary);
+  --accent-teal: var(--stitch-primary);
+  --info-soft: #eff6ff;
+  --success: var(--stitch-success);
+  --success-soft: #ecfdf5;
+  --offline: var(--stitch-danger);
+  --offline-soft: #fff1f2;
+  --danger: var(--stitch-danger);
+  --danger-border: var(--stitch-danger);
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 16;
+  width: clamp(460px, 27vw, 620px);
+  max-width: calc(100% - 24px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-left: 1px solid var(--stitch-border);
+  color: var(--stitch-text);
+  color-scheme: light;
+  background: var(--stitch-surface);
+  box-shadow: -4px 0 10px rgba(15, 23, 42, 0.08);
+  font-family: Inter, "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+  transform-origin: right center;
+  will-change: transform, opacity;
+}
+
+.stitch-device-drawer *,
+.stitch-device-drawer *::before,
+.stitch-device-drawer *::after {
+  box-sizing: border-box;
+}
+
+.stitch-device-drawer .device-config-tabs {
+  min-height: 48px;
+  flex: 0 0 48px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  margin: 0;
+  padding: 7px 10px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 1px solid var(--stitch-border);
+  background: var(--stitch-surface-bright);
+  scrollbar-width: thin;
+}
+
+.stitch-device-drawer .device-config-tab {
+  position: relative;
+  width: auto;
+  min-width: 108px;
+  min-height: 40px;
+  flex: 0 0 auto;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 4px 4px 0 0;
+  color: var(--stitch-text-secondary);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.stitch-device-drawer .device-config-tab:hover {
+  background: var(--stitch-surface-container);
+}
+
+.stitch-device-drawer .device-config-tab.active {
+  border-bottom-color: var(--stitch-primary);
+  color: #0b1c30;
+  background: #d3e4fe;
+}
+
+.stitch-device-drawer .device-config-tab.active::after {
+  content: none;
+}
+
+.stitch-device-drawer .drawer-head {
+  min-height: 60px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--stitch-border-soft);
+  background: var(--stitch-surface);
+}
+
+.stitch-device-drawer .drawer-ident {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stitch-device-drawer .drawer-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #b7c8e1;
+  border-radius: 4px;
+  color: var(--stitch-primary);
+  background: #d3e4fe;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.stitch-device-drawer .drawer-title-box {
+  min-width: 0;
+}
+
+.stitch-device-drawer .drawer-title {
+  margin: 0 0 2px;
+  color: var(--stitch-text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.stitch-device-drawer .drawer-subtitle {
+  margin: 0;
+  overflow: hidden;
+  color: var(--stitch-muted);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stitch-device-drawer .drawer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stitch-device-drawer .online-badge {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-radius: 2px;
+  color: var(--stitch-success);
+  background: #ecfdf5;
+  font-size: 11px;
+}
+
+.stitch-device-drawer .online-badge i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: none;
+}
+
+.stitch-device-drawer .online-badge.offline {
+  color: var(--stitch-danger);
+  background: #fff1f2;
+}
+
+.stitch-device-drawer .drawer-close {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--stitch-border-soft);
+  border-radius: 3px;
+  color: var(--stitch-text-secondary);
+  background: var(--stitch-surface-bright);
+  cursor: pointer;
+  font-size: 19px;
+  line-height: 1;
+}
+
+.stitch-device-drawer .drawer-close:hover {
+  border-color: var(--stitch-border);
+  color: var(--stitch-primary);
+  background: var(--stitch-surface-low);
+}
+
+.stitch-device-drawer .drawer-body {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  background: var(--stitch-surface);
+  scrollbar-color: var(--stitch-border) transparent;
+  scrollbar-width: thin;
+}
+
+.stitch-device-drawer .drawer-body::-webkit-scrollbar,
+.stitch-device-drawer .gateway-device-box::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.stitch-device-drawer .drawer-body::-webkit-scrollbar-thumb,
+.stitch-device-drawer .gateway-device-box::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--stitch-border);
+}
+
+.stitch-device-drawer .drawer-section {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 14px;
+  border: 1px solid var(--stitch-border);
+  border-radius: 4px;
+  color: var(--stitch-text);
+  background: var(--stitch-surface-bright);
+  box-shadow: none;
+}
+
+.stitch-device-drawer .section-head {
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  color: var(--stitch-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.stitch-device-drawer .section-tag {
+  padding: 3px 7px;
+  border: 0;
+  border-radius: 2px;
+  color: var(--stitch-label);
+  background: var(--stitch-surface-container);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.stitch-device-drawer .button-grid {
+  display: grid;
+  gap: 7px;
+}
+
+.stitch-device-drawer .button-grid.two,
+.stitch-device-drawer .button-grid.by-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.stitch-device-drawer .action-btn {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--stitch-border);
+  border-radius: 2px;
+  color: var(--stitch-text);
+  background: var(--stitch-surface);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.stitch-device-drawer .action-btn:hover {
+  border-color: var(--stitch-primary);
+  color: var(--stitch-primary);
+  background: #eff6ff;
+  box-shadow: none;
+}
+
+.stitch-device-drawer .action-btn.active {
+  border-color: var(--stitch-primary);
+  color: #ffffff;
+  background: var(--stitch-primary);
+  box-shadow: none;
+}
+
+.stitch-device-drawer .action-btn:disabled:not(.active) {
+  border-color: var(--stitch-border-soft);
+  color: var(--stitch-muted);
+  background: var(--stitch-surface-low);
+  opacity: 0.65;
+}
+
+.stitch-device-drawer .section-desc {
+  margin: 0;
+  color: var(--stitch-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.stitch-device-drawer .metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stitch-device-drawer .metric-card,
+.stitch-device-drawer .time-card,
+.stitch-device-drawer .status-card {
+  border: 1px solid var(--stitch-border-soft);
+  border-radius: 2px;
+  background: var(--stitch-surface);
+}
+
+.stitch-device-drawer .metric-card {
+  padding: 10px;
+}
+
+.stitch-device-drawer .metric-label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--stitch-label);
+  font-size: 11px;
+}
+
+.stitch-device-drawer .brightness-select,
+.stitch-device-drawer .time-input-wrap {
+  height: 34px;
+  border-color: var(--stitch-border);
+  border-radius: 2px;
+  color: var(--stitch-primary);
+  background: var(--stitch-surface-bright);
+}
+
+.stitch-device-drawer .brightness-select input,
+.stitch-device-drawer .time-input {
+  color: var(--stitch-text);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11px;
+}
+
+.stitch-device-drawer .brightness-unit,
+.stitch-device-drawer .time-input-wrap > span:last-child {
+  color: var(--stitch-primary);
+  font-size: 11px;
+}
+
+.stitch-device-drawer .brightness-toggle {
+  border-left-color: var(--stitch-border-soft);
+  color: var(--stitch-label);
+  background: var(--stitch-surface-low);
+}
+
+.stitch-device-drawer .brightness-options {
+  border-color: var(--stitch-border);
+  border-radius: 3px;
+  background: var(--stitch-surface);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+}
+
+.stitch-device-drawer .brightness-options button {
+  color: var(--stitch-text-secondary);
+}
+
+.stitch-device-drawer .brightness-options button:hover,
+.stitch-device-drawer .brightness-options button.selected {
+  color: var(--stitch-primary);
+  background: #eff6ff;
+}
+
+.stitch-device-drawer .time-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.stitch-device-drawer .time-card {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+}
+
+.stitch-device-drawer .time-title {
+  color: var(--stitch-text);
+  font-size: 12px;
+}
+
+.stitch-device-drawer .time-copy {
+  color: var(--stitch-muted);
+  font-size: 10px;
+}
+
+.stitch-device-drawer .metric-error {
+  color: var(--stitch-danger);
+  font-size: 10px;
+}
+
+.stitch-device-drawer .status-card {
+  display: grid;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.stitch-device-drawer .status-row {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 10px;
+  color: var(--stitch-label);
+  font-size: 11px;
+}
+
+.stitch-device-drawer .status-row + .status-row {
+  border-top: 1px solid var(--stitch-border-soft);
+}
+
+.stitch-device-drawer .status-row strong {
+  overflow: hidden;
+  color: var(--stitch-text);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stitch-device-drawer .gateway-device-summary {
+  margin-top: 0;
+  overflow: hidden;
+  border: 1px solid var(--stitch-border-soft);
+  border-radius: 3px;
+  background: var(--stitch-surface);
+}
+
+.stitch-device-drawer .gateway-device-head {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--stitch-border-soft);
+  color: var(--stitch-label);
+  background: var(--stitch-surface-low);
+  font-size: 11px;
+}
+
+.stitch-device-drawer .gateway-device-head strong {
+  color: var(--stitch-text);
+  font-weight: 600;
+}
+
+.stitch-device-drawer .gateway-device-box {
+  max-height: 210px;
+  overflow: auto;
+  background: var(--stitch-surface-bright);
+}
+
+.stitch-device-drawer .gateway-device-row {
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  color: var(--stitch-text-secondary);
+  font-size: 11px;
+}
+
+.stitch-device-drawer .gateway-device-row + .gateway-device-row {
+  border-top: 1px solid var(--stitch-border-soft);
+}
+
+.stitch-device-drawer .gateway-device-row strong {
+  color: var(--stitch-success);
+  font-weight: 500;
+  text-align: right;
+}
+
+.stitch-device-drawer .table-empty {
+  padding: 28px 12px;
+  color: var(--stitch-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.stitch-device-drawer .footer-btn {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--stitch-primary);
+  border-radius: 2px;
+  color: #ffffff;
+  background: var(--stitch-primary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.stitch-device-drawer .footer-btn:hover {
+  background: var(--stitch-primary-hover);
+}
+
+@media (max-width: 760px) {
+  .stitch-device-drawer {
+    width: 100%;
+    max-width: 100%;
+    border-left: 0;
+  }
+
+  .stitch-device-drawer .metric-grid {
     grid-template-columns: 1fr;
   }
 }

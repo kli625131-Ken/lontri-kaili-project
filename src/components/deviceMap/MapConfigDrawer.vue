@@ -1,5 +1,5 @@
 <template>
-  <aside class="control-drawer config-drawer" aria-label="区域信息">
+  <aside class="stitch-config-drawer" aria-label="区域信息">
     <nav class="drawer-tabs" aria-label="区域配置" role="tablist">
       <button
         v-for="tab in tabs"
@@ -69,8 +69,10 @@
                     <td class="code-text">{{ formatSceneId(scene.slot) }}</td>
                     <td>{{ scene.brightness }}% | {{ scene.brightness === 0 ? '-' : `${scene.colorTemperature}K` }}</td>
                     <td class="operation-cell">
-                      <button v-if="canExecuteScene(scene)" type="button" :disabled="workflowBusy" @click="executeScene(scene)">执行场景</button>
-                      <button v-if="canEditScene(scene)" type="button" :disabled="workflowBusy" @click="editingScene = scene">编辑</button>
+                      <button v-if="sceneMode === 'custom'" type="button" class="scene-edit-button" :disabled="workflowBusy" @click="editingScene = scene">
+                        <span class="fluent-icon" aria-hidden="true">{{ icons.edit }}</span>编辑
+                      </button>
+                      <button type="button" :disabled="workflowBusy" @click="executeScene(scene)">执行场景</button>
                     </td>
                   </tr>
                   <tr v-if="!sceneRows.length"><td colspan="4" class="table-empty-row">暂无{{ sceneMode === 'custom' ? '自定义' : '默认' }}场景</td></tr>
@@ -112,7 +114,7 @@
           </section>
 
           <section class="content-section subscription-info-section">
-            <div class="section-title-row"><h3>订阅信息</h3><button type="button" class="query-link" @click="panelQueryRequested = true"><span class="fluent-icon">{{ icons.sync }}</span>一键查询</button></div>
+            <div class="section-title-row"><h3>订阅信息</h3><button type="button" class="drawer-action drawer-action--query" @click="panelQueryRequested = true"><span class="fluent-icon">{{ icons.sync }}</span>一键查询</button></div>
             <div class="data-table-wrap subscription-table-wrap">
               <table class="data-table">
                 <thead><tr><th>面板 ID</th><th>键值 ID</th><th>目标场景 ID</th></tr></thead>
@@ -138,7 +140,7 @@
             <div class="dual-actions"><button type="button" class="primary" :disabled="!subscriptionForm.deviceId || workflowBusy" @click="configureSubscriptionForm">提交保存</button><button type="button" :disabled="!subscriptionForm.deviceId || workflowBusy" @click="configureSubscriptionForm">下发配置</button></div>
           </section>
           <section class="content-section info-section">
-            <div class="section-title-row"><h3>订阅信息</h3><button type="button" class="query-link" @click="subscriptionQueryRequested = true"><span class="fluent-icon">{{ icons.search }}</span>一键查询</button></div>
+            <div class="section-title-row"><h3>订阅信息</h3><button type="button" class="drawer-action drawer-action--query" @click="subscriptionQueryRequested = true"><span class="fluent-icon">{{ icons.search }}</span>一键查询</button></div>
             <InfoEmpty v-if="!subscriptionQueryRequested || !subscriptionRecords.length" icon="rss" :text="subscriptionQueryRequested ? '暂无订阅信息' : '暂无订阅信息'" />
             <div v-else class="data-table-wrap"><table class="data-table"><thead><tr><th>面板 ID</th><th>键值 ID</th><th>目标场景 ID</th></tr></thead><tbody><tr v-for="(record, index) in subscriptionRecords" :key="index"><td>{{ record.EnoceanID }}</td><td>{{ record.EnoceanKeyID }}</td><td>{{ record.GatewayGroupSoltID }}</td></tr></tbody></table></div>
           </section>
@@ -152,7 +154,7 @@
             <div class="dual-actions"><button type="button" class="primary" :disabled="!mtcDeviceId || workflowBusy" @click="configureSubscriptionForm">提交保存</button><button type="button" :disabled="!mtcDeviceId || workflowBusy" @click="configureSubscriptionForm">下发配置</button></div>
           </section>
           <section class="content-section info-section">
-            <div class="section-title-row"><h3>订阅信息</h3><button type="button" class="query-link" @click="mtcQueryRequested = true"><span class="fluent-icon">{{ icons.search }}</span>一键查询</button></div>
+            <div class="section-title-row"><h3>订阅信息</h3><button type="button" class="drawer-action drawer-action--query" @click="mtcQueryRequested = true"><span class="fluent-icon">{{ icons.search }}</span>一键查询</button></div>
             <InfoEmpty v-if="!mtcQueryRequested || !subscriptionRecords.length" icon="info" text="暂无订阅数据" />
             <div v-else class="data-table-wrap"><table class="data-table"><thead><tr><th>面板 ID</th><th>键值 ID</th><th>目标场景 ID</th></tr></thead><tbody><tr v-for="(record, index) in subscriptionRecords" :key="index"><td>{{ record.EnoceanID }}</td><td>{{ record.EnoceanKeyID }}</td><td>{{ record.GatewayGroupSoltID }}</td></tr></tbody></table></div>
           </section>
@@ -197,7 +199,17 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'workflow-action', 'save-cu-params', 'delete-region'])
-const icons = { power: '\uE7E8', mute: '\uE74F', sync: '\uE895', search: '\uE721', light: '\uE706', sensor: '\uE80A' }
+const icons = {
+  power: '\uE7E8',
+  mute: '\uE74F',
+  sync: '\uE895',
+  search: '\uE721',
+  light: '\uE706',
+  sensor: '\uE80A',
+  rss: '\uE701',
+  info: '\uE946',
+  edit: '\uE713'
+}
 const tabs = [
   { value: 'region', label: '区域信息', icon: '\uE946' },
   { value: 'scene', label: '场景信息', icon: '\uE9D9' },
@@ -242,7 +254,7 @@ const gatewayName = computed(() => regionSnapshot.value?.gatewayName || areaGrou
 const devices = computed(() => regionSnapshot.value?.members || [])
 const deviceCount = computed(() => regionSnapshot.value?.deviceCount ?? devices.value.length)
 const groupStatus = computed(() => areaGroup.value?.status || '待配置')
-const sceneRows = computed(() => (props.workflow?.scenes || []).filter((scene) => sceneMode.value === 'custom' ? scene.kind === 'custom' : scene.kind !== 'custom'))
+const sceneRows = computed(() => props.workflow?.scenes || [])
 const activeSceneName = computed(() => props.workflow?.scenes?.find((scene) => scene.active)?.name || '')
 const panelButtons = computed(() => props.workflow?.panel?.buttons?.length ? props.workflow.panel.buttons : [{ keyNo: 1 }, { keyNo: 2 }, { keyNo: 3 }, { keyNo: 4 }])
 const panelFormValid = computed(() => panelForm.panelId.trim().length === 8)
@@ -273,8 +285,6 @@ function runMulticast(action) { selectedMulticastAction.value = action; emit('wo
 function runBrightness(value) { selectedBrightness.value = value; selectedMulticastAction.value = 'brightness'; emit('workflow-action', { type: 'verify-group', action: 'brightness', value }) }
 function configureGroup() { emit('workflow-action', { type: 'configure-group' }) }
 function formatSceneId(slot) { return String(slot ?? '').padStart(2, '0') }
-function canExecuteScene(scene) { return scene.configStatus === '配置完成' }
-function canEditScene(scene) { return scene.configStatus !== '配置中' && scene.verifyStatus !== '验证中' }
 function executeScene(scene) { emit('workflow-action', { type: 'verify-scene', sceneId: scene.id }) }
 function saveSceneEdit(scene) { emit('workflow-action', { type: 'update-scene', scene }); editingScene.value = null }
 function configurePanelForm() {
@@ -306,24 +316,45 @@ function getDeviceIcon(device) { return /OCSR|SENSOR|PIR/i.test(`${device?.name 
 const RegionFields = defineComponent({
   props: { showName: { type: Boolean, default: true }, showGroup: { type: Boolean, default: true } },
   setup(componentProps) {
-    return () => h('section', { class: 'region-fields' }, [
-      componentProps.showName ? h('label', { class: 'field-block full-field' }, [h('span', '区域名称'), h('input', { value: regionName.value, readonly: true })]) : null,
-      h('div', { class: 'field-grid' }, [
-        componentProps.showGroup ? h('label', { class: 'field-block' }, [h('span', '区域组 ID'), h('input', { value: groupId.value, readonly: true, class: 'code-field' })]) : null,
-        h('label', { class: ['field-block', { 'full-grid-field': !componentProps.showGroup }] }, [h('span', '网关'), h('input', { value: gatewayName.value, readonly: true, class: 'code-field' })])
+    return () => {
+      const gatewayField = h('label', { class: 'field-block' }, [
+        h('span', '网关'),
+        h('input', { value: gatewayName.value, readonly: true, class: 'code-field' })
       ])
-    ])
+      const groupField = h('label', { class: 'field-block' }, [
+        h('span', '区域组 ID'),
+        h('input', { value: groupId.value, readonly: true, class: 'code-field' })
+      ])
+
+      return h('section', { class: 'region-fields' }, componentProps.showName
+        ? [
+            h('div', { class: 'field-grid' }, [
+              h('label', { class: 'field-block' }, [h('span', '区域名称'), h('input', { value: regionName.value, readonly: true })]),
+              gatewayField
+            ]),
+            componentProps.showGroup ? groupField : null
+          ]
+        : [h('div', { class: 'field-grid' }, componentProps.showGroup ? [groupField, gatewayField] : [gatewayField])])
+    }
   }
 })
 const SectionTitle = defineComponent({ props: { title: String }, setup(componentProps) { return () => h('div', { class: 'section-title-row' }, [h('h3', componentProps.title)]) } })
-const InfoEmpty = defineComponent({ props: { text: String, icon: String }, setup(componentProps) { return () => h('div', { class: 'info-empty' }, [componentProps.icon ? h('span', { class: 'empty-icon' }, componentProps.icon === 'rss' ? '◔' : 'ⓘ') : null, h('span', componentProps.text)]) } })
+const InfoEmpty = defineComponent({
+  props: { text: String, icon: String },
+  setup(componentProps) {
+    return () => h('div', { class: 'info-empty' }, [
+      componentProps.icon ? h('span', { class: 'fluent-icon empty-icon', 'aria-hidden': 'true' }, componentProps.icon === 'rss' ? icons.rss : icons.info) : null,
+      h('span', componentProps.text)
+    ])
+  }
+})
 const DeviceListSection = defineComponent({
   props: { title: String }, emits: ['query', 'configure'],
   setup(componentProps, { emit: componentEmit }) {
     return () => h('section', { class: 'content-section device-section' }, [
       h('div', { class: 'device-heading' }, [h('h3', `${componentProps.title} (${deviceCount.value})`), h('div', { class: 'heading-actions' }, [
-        h('button', { type: 'button', disabled: props.workflowBusy, onClick: () => componentEmit('query') }, [h('span', { class: 'fluent-icon' }, icons.sync), '一键查询']),
-        h('button', { type: 'button', class: 'primary', disabled: props.workflowBusy, onClick: () => componentEmit('configure') }, [h('span', { class: 'fluent-icon' }, '\uE724'), '一键配置'])
+        h('button', { type: 'button', class: 'drawer-action drawer-action--query', disabled: props.workflowBusy, onClick: () => componentEmit('query') }, [h('span', { class: 'fluent-icon' }, icons.sync), '一键查询']),
+        h('button', { type: 'button', class: 'drawer-action drawer-action--configure', disabled: props.workflowBusy, onClick: () => componentEmit('configure') }, [h('span', { class: 'fluent-icon' }, '\uE724'), '一键配置'])
       ])]),
       h('div', { class: 'data-table-wrap device-table-wrap' }, [h('table', { class: 'data-table device-table' }, [
         h('thead', [h('tr', [h('th', '设备名称'), h('th', 'Zigbee ID'), h('th', '状态')])]),
@@ -339,47 +370,828 @@ const DeviceListSection = defineComponent({
 </script>
 
 <style>
-.config-drawer.control-drawer {
-  --primary: #004ac6; --primary-hover: #003ea8; --text: #191c1e; --secondary: #434655; --muted: #737686;
-  --border: #c3c6d7; --border-soft: #e2e8f0; --surface: #ffffff; --surface-low: #f2f4f6; --surface-high: #e6e8ea;
-  position: absolute; inset: 0 0 0 auto !important; z-index: 16; width: 420px !important; max-width: calc(100% - 24px); max-height: none !important;
-  display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; border: 0 !important; border-left: 1px solid var(--border) !important;
-  border-radius: 0 !important; color: var(--text); background: var(--surface); box-shadow: -4px 0 10px rgba(15, 23, 42, .08) !important;
-  font-family: Inter, "Microsoft YaHei", "PingFang SC", Arial, sans-serif; transform: none;
+.stitch-config-drawer {
+  --stitch-primary: #004ac6;
+  --stitch-primary-hover: #003ea8;
+  --stitch-text: #191c1e;
+  --stitch-text-secondary: #434655;
+  --stitch-label: #505f76;
+  --stitch-muted: #737686;
+  --stitch-border: #c3c6d7;
+  --stitch-border-soft: #e2e8f0;
+  --stitch-surface: #ffffff;
+  --stitch-surface-bright: #f7f9fb;
+  --stitch-surface-low: #f2f4f6;
+  --stitch-surface-container: #eceef0;
+  --stitch-surface-high: #e6e8ea;
+  --stitch-active-tab: #d3e4fe;
+  --stitch-code: #475569;
+  --stitch-success: #10b981;
+  --stitch-danger: #f43f5e;
+  --primary: var(--stitch-primary);
+  --primary-hover: var(--stitch-primary-hover);
+  --text: var(--stitch-text);
+  --secondary: var(--stitch-text-secondary);
+  --muted: var(--stitch-muted);
+  --border: var(--stitch-border);
+  --border-soft: var(--stitch-border-soft);
+  --surface: var(--stitch-surface);
+  --surface-low: var(--stitch-surface-low);
+  --surface-high: var(--stitch-surface-high);
+  --text-1: var(--stitch-text);
+  --text-2: var(--stitch-text-secondary);
+  --text-primary: var(--stitch-text);
+  --text-secondary: var(--stitch-text-secondary);
+  --text-tertiary: var(--stitch-muted);
+  --text-strong: var(--stitch-text);
+  --control-bg: var(--stitch-surface);
+  --control-bg-hover: var(--stitch-surface-low);
+  --border-subtle: var(--stitch-border-soft);
+  --border-default: var(--stitch-border);
+  --border-active: var(--stitch-primary);
+  --accent-cyan: var(--stitch-primary);
+  --accent-teal: var(--stitch-primary);
+  --danger: var(--stitch-danger);
+  --danger-border: var(--stitch-danger);
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 16;
+  width: clamp(460px, 27vw, 620px);
+  max-width: calc(100% - 24px);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-left: 1px solid var(--stitch-border);
+  color: var(--stitch-text);
+  color-scheme: light;
+  background: var(--stitch-surface);
+  box-shadow: -4px 0 10px rgba(15, 23, 42, 0.08);
+  font-family: Inter, "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+  font-size: 14px;
+  transform: none;
 }
-.config-drawer {
-.fluent-icon { font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets"; font-size: 14px; font-weight: 400; line-height: 1; }
-.drawer-tabs { display: grid; flex: 0 0 48px; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: end; padding: 7px 6px 0; overflow: hidden; border-bottom: 1px solid var(--border); background: #f7f9fb; }
-.drawer-tabs button { min-width: 0; height: 40px; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 0 3px; overflow: hidden; border: 0; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0; color: var(--secondary); background: transparent; cursor: pointer; font-size: 11px; white-space: nowrap; }
-.drawer-tabs button span:last-child { overflow: hidden; text-overflow: clip; }
-.drawer-tabs button:hover { background: var(--surface-high); }
-.drawer-tabs button.active { border-bottom-color: var(--primary); color: #0b1c30; background: #d0e1fb; }
-.drawer-main { min-height: 0; display: flex; flex: 1; flex-direction: column; }
-.drawer-scroll { min-height: 0; flex: 1; overflow: auto; padding: 16px; scrollbar-color: var(--border) transparent; scrollbar-width: thin; }
-.drawer-scroll::-webkit-scrollbar { width: 4px; }.drawer-scroll::-webkit-scrollbar-thumb { border-radius: 2px; background: var(--border); }
-.region-fields { display: grid; gap: 12px; }.field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }.full-grid-field { grid-column: 2; }
-.field-block { min-width: 0; display: grid; gap: 5px; }.field-block > span { color: #505f76; font-size: 12px; line-height: 16px; }
-.field-block input, .stacked-field select, .panel-fields input { width: 100%; height: 34px; box-sizing: border-box; padding: 0 9px; border: 1px solid var(--border); border-radius: 2px; color: var(--text); background: #f7f9fb; outline: none; font-size: 13px; }
-.field-block input.code-field { border-color: var(--border-soft); color: #475569; background: #eceef0; font-family: "JetBrains Mono", Consolas, monospace; }
-.content-section { margin-top: 22px; }.section-title-row, .device-heading { min-height: 24px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border-soft); }
-.section-title-row h3, .device-heading h3 { margin: 0; color: #505f76; font-size: 11px; font-weight: 700; line-height: 16px; }
-.multicast-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 9px; }
-.multicast-actions button { height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; border: 1px solid var(--border); border-radius: 2px; color: var(--text); background: #f7f9fb; cursor: pointer; font-size: 13px; font-weight: 600; }
-.multicast-actions button.active { border-color: var(--primary); color: #fff; background: var(--primary); }.button-icon { font-size: 18px; }
-.brightness-segments { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 9px; }
-.brightness-segments button { height: 31px; border: 1px solid var(--border); border-left: 0; color: var(--text); background: #fff; cursor: pointer; font-size: 11px; }.brightness-segments button:first-child { border-left: 1px solid var(--border); border-radius: 2px 0 0 2px; }.brightness-segments button:last-child { border-radius: 0 2px 2px 0; }.brightness-segments button.active { background: var(--surface-high); }
-.device-section { margin-top: 24px; }.heading-actions { display: flex; gap: 5px; }.heading-actions button { height: 27px; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; border: 1px solid var(--border); border-radius: 2px; color: var(--primary); background: #fff; cursor: pointer; font-size: 10px; }.heading-actions button.primary { border-color: var(--primary); color: #fff; background: var(--primary); }
-.data-table-wrap { overflow: auto; margin-top: 9px; border: 1px solid var(--border-soft); border-radius: 4px; background: #f7f9fb; }.device-table-wrap { height: 198px; }.data-table { width: 100%; border-collapse: collapse; table-layout: fixed; }.data-table th { height: 32px; padding: 0 10px; color: #505f76; background: var(--surface-low); font-size: 11px; font-weight: 500; text-align: left; }.data-table td { height: 30px; padding: 0 10px; border-top: 1px solid var(--border-soft); color: var(--text); font-size: 11px; white-space: nowrap; }.device-table th:nth-child(1) { width: 29%; }.device-table th:nth-child(2) { width: 52%; }.device-table th:nth-child(3) { width: 19%; }
-.device-name-cell { display: flex; align-items: center; gap: 7px; }.device-icon { color: #505f76; font-size: 12px; }.code-text { overflow: hidden; color: #475569 !important; font-family: "JetBrains Mono", Consolas, monospace; text-overflow: ellipsis; }.network-status { display: inline-flex; align-items: center; gap: 6px; color: #10b981; }.network-status.pending { color: #f43f5e; }.network-status i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
-.table-empty-row { height: 76px !important; color: var(--muted) !important; text-align: center; }.info-section { margin-top: 18px; }.info-empty { min-height: 104px; display: grid; place-items: center; align-content: center; gap: 8px; box-sizing: border-box; margin-top: 9px; border: 1px dashed var(--border); border-radius: 4px; color: #505f76; background: var(--surface-low); font-size: 11px; }.empty-icon { color: var(--border); font-size: 26px; }
-.query-result { min-height: 104px; display: grid; align-content: center; gap: 7px; box-sizing: border-box; margin: 9px 0 0; padding: 14px 16px; border: 1px dashed var(--border); border-radius: 4px; background: var(--surface-low); }.query-result > div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; }.query-result dt { color: var(--muted); font-size: 11px; }.query-result dd { margin: 0; color: var(--text); font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px; }
-.segmented-control { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin-top: 9px; padding: 3px; border-radius: 4px; background: var(--surface-low); }.segmented-control button { height: 28px; border: 0; border-radius: 2px; color: #505f76; background: transparent; cursor: pointer; font-size: 11px; }.segmented-control button.active { color: var(--primary); background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.08); }
-.scene-table-wrap { max-height: 230px; }.scene-table th:nth-child(1) { width: 22%; }.scene-table th:nth-child(2) { width: 17%; }.scene-table th:nth-child(3) { width: 29%; }.scene-table th:nth-child(4) { width: 32%; }.operation-cell { display: flex; align-items: center; gap: 8px; }.operation-cell button, .query-link { padding: 0; border: 0; color: var(--primary); background: transparent; cursor: pointer; font-size: 11px; }
-.panel-config-grid { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 12px; margin-top: 12px; }.panel-diagram { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface-low); }.panel-diagram button { aspect-ratio: 1; border: 1px solid #b7c8e1; border-radius: 2px; color: #004ac6; background: #d0e1fb; cursor: pointer; font-weight: 600; }.panel-diagram button.active { outline: 2px solid var(--primary); outline-offset: -2px; }.panel-diagram > span { grid-column: 1 / -1; padding-top: 3px; color: #505f76; font-size: 10px; text-align: center; }.panel-fields { display: grid; align-content: start; gap: 12px; }.panel-fields label, .stacked-field { display: grid; gap: 5px; }.panel-fields label > span, .stacked-field > span, .type-field > span { color: #505f76; font-size: 12px; }
-.dual-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; margin-top: 12px; }.dual-actions button { height: 34px; border: 1px solid var(--primary); border-radius: 2px; color: var(--primary); background: #fff; cursor: pointer; font-size: 13px; font-weight: 600; }.dual-actions button.primary { color: #fff; background: var(--primary); }.dual-actions button:disabled, button:disabled { cursor: wait; opacity: .55; }
-.subscription-info-section { margin-top: 18px; }.subscription-table-wrap { max-height: 230px; }.subscription-form-section { display: grid; gap: 12px; }.subscription-form-section .section-title-row { margin-bottom: 0; }.type-field { display: grid; gap: 6px; }.type-field > div { display: flex; gap: 7px; }.type-field button { min-width: 48px; min-height: 26px; padding: 0 10px; border: 1px solid var(--border); border-radius: 13px; color: #505f76; background: #fff; cursor: pointer; font-size: 10px; }.type-field button.active { border-color: var(--primary); color: var(--primary); background: #eff6ff; }.query-link { display: inline-flex; align-items: center; gap: 4px; }
-.parameter-content { display: grid; gap: 16px; margin-top: 16px; }.drawer-footer { flex: 0 0 66px; display: flex; align-items: center; padding: 0 16px; border-top: 1px solid var(--border); background: var(--surface-low); }.drawer-footer button { width: 100%; height: 35px; border: 1px solid #f43f5e; border-radius: 2px; color: #f43f5e; background: transparent; cursor: pointer; font-size: 13px; }.drawer-footer button:hover { color: #fff; background: #f43f5e; }
-.parameter-content .drawer-section { gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-low); }.parameter-content .section-head { color: var(--text); }.parameter-content .section-tag { border-color: var(--border-soft); border-radius: 2px; color: #505f76; background: var(--surface-high); }.parameter-content .action-btn { min-height: 34px; border-color: var(--border); border-radius: 2px; color: var(--text); background: #fff; }.parameter-content .action-btn.active { border-color: var(--primary); color: #fff; background: var(--primary); }.parameter-content .section-desc, .parameter-content .time-copy { color: var(--muted); }.parameter-content .metric-card, .parameter-content .time-card { border-color: var(--border); border-radius: 2px; background: #f7f9fb; }.parameter-content .brightness-select, .parameter-content .time-input-wrap { border-color: var(--border); border-radius: 2px; color: var(--primary); background: #fff; }.parameter-content .brightness-options { border-color: var(--border); background: #fff; }.parameter-content .brightness-options button { color: var(--secondary); }.parameter-content .brightness-options button:hover, .parameter-content .brightness-options button.selected { color: var(--primary); background: #eff6ff; }.parameter-content .time-input, .parameter-content .brightness-select input { color: var(--text); font-family: "JetBrains Mono", Consolas, monospace; }
+
+.stitch-config-drawer *,
+.stitch-config-drawer *::before,
+.stitch-config-drawer *::after {
+  box-sizing: border-box;
 }
-@media (max-width: 760px) { .config-drawer.control-drawer { width: min(100%, 420px) !important; max-width: 100%; }.config-drawer { .drawer-tabs { padding-right: 2px; padding-left: 2px; }.drawer-tabs button { gap: 2px; padding: 0 1px; font-size: 10px; }.panel-config-grid { grid-template-columns: 130px minmax(0, 1fr); } } }
+
+.stitch-config-drawer button,
+.stitch-config-drawer input,
+.stitch-config-drawer select {
+  font: inherit;
+}
+
+.stitch-config-drawer .fluent-icon {
+  flex: 0 0 auto;
+  font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets";
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.stitch-config-drawer .drawer-tabs {
+  min-width: 0;
+  flex: 0 0 48px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 7px 8px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 1px solid var(--stitch-border);
+  background: var(--stitch-surface-bright);
+  scrollbar-width: none;
+}
+
+.stitch-config-drawer .drawer-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.stitch-config-drawer .drawer-tabs button {
+  flex: 0 0 auto;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 6px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 8px 8px 0 0;
+  color: var(--stitch-text-secondary);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.stitch-config-drawer .drawer-tabs button:hover {
+  background: var(--stitch-surface-high);
+}
+
+.stitch-config-drawer .drawer-tabs button.active {
+  border-bottom-color: var(--stitch-primary);
+  color: #0b1c30;
+  background: var(--stitch-active-tab);
+}
+
+.stitch-config-drawer .drawer-tabs button:focus-visible,
+.stitch-config-drawer button:focus-visible,
+.stitch-config-drawer input:focus-visible,
+.stitch-config-drawer select:focus-visible {
+  outline: 2px solid rgba(0, 74, 198, 0.32);
+  outline-offset: 1px;
+}
+
+.stitch-config-drawer .drawer-main {
+  min-height: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  background: var(--stitch-surface);
+}
+
+.stitch-config-drawer .drawer-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  background: var(--stitch-surface);
+  scrollbar-color: var(--stitch-border) transparent;
+  scrollbar-width: thin;
+}
+
+.stitch-config-drawer .drawer-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.stitch-config-drawer .drawer-scroll::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--stitch-border);
+}
+
+.stitch-config-drawer .region-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.stitch-config-drawer .field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stitch-config-drawer .full-grid-field {
+  grid-column: 2;
+}
+
+.stitch-config-drawer .field-block {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.stitch-config-drawer .field-block > span,
+.stitch-config-drawer .panel-fields label > span,
+.stitch-config-drawer .stacked-field > span,
+.stitch-config-drawer .type-field > span {
+  color: var(--stitch-label);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.stitch-config-drawer .field-block input,
+.stitch-config-drawer .stacked-field select,
+.stitch-config-drawer .panel-fields input {
+  width: 100%;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--stitch-border);
+  border-radius: 2px;
+  color: var(--stitch-text);
+  background: var(--stitch-surface-bright);
+  outline: none;
+  font-size: 13px;
+}
+
+.stitch-config-drawer .field-block input.code-field {
+  border-color: var(--stitch-border-soft);
+  color: var(--stitch-code);
+  background: var(--stitch-surface-container);
+  font-family: "JetBrains Mono", Consolas, monospace;
+}
+
+.stitch-config-drawer .content-section {
+  margin-top: 24px;
+}
+
+.stitch-config-drawer .section-title-row,
+.stitch-config-drawer .device-heading {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--stitch-border-soft);
+}
+
+.stitch-config-drawer .section-title-row h3,
+.stitch-config-drawer .device-heading h3 {
+  margin: 0;
+  color: var(--stitch-label);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: 0.03em;
+}
+
+.stitch-config-drawer .multicast-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.stitch-config-drawer .multicast-actions button {
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid var(--stitch-border);
+  border-radius: 2px;
+  color: var(--stitch-text);
+  background: var(--stitch-surface-bright);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.stitch-config-drawer .multicast-actions button.active {
+  border-color: var(--stitch-primary);
+  color: #ffffff;
+  background: var(--stitch-primary);
+}
+
+.stitch-config-drawer .button-icon {
+  font-size: 18px;
+}
+
+.stitch-config-drawer .brightness-segments {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 9px;
+}
+
+.stitch-config-drawer .brightness-segments button {
+  height: 31px;
+  border: 1px solid var(--stitch-border);
+  border-left: 0;
+  color: var(--stitch-text);
+  background: var(--stitch-surface);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.stitch-config-drawer .brightness-segments button:first-child {
+  border-left: 1px solid var(--stitch-border);
+  border-radius: 2px 0 0 2px;
+}
+
+.stitch-config-drawer .brightness-segments button:last-child {
+  border-radius: 0 2px 2px 0;
+}
+
+.stitch-config-drawer .brightness-segments button.active {
+  background: var(--stitch-surface-high);
+}
+
+.stitch-config-drawer .heading-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.stitch-config-drawer .drawer-action {
+  min-width: 88px;
+  height: 30px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--stitch-primary);
+  border-radius: 2px;
+  color: var(--stitch-primary);
+  background: var(--stitch-surface);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.stitch-config-drawer .drawer-action .fluent-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.stitch-config-drawer .drawer-action--configure {
+  border-color: var(--stitch-primary);
+  color: #ffffff;
+  background: var(--stitch-primary);
+}
+
+.stitch-config-drawer .drawer-action--query:hover:not(:disabled),
+.stitch-config-drawer .drawer-action--query:focus-visible {
+  background: #eff6ff;
+}
+
+.stitch-config-drawer .drawer-action--configure:hover:not(:disabled),
+.stitch-config-drawer .drawer-action--configure:focus-visible {
+  border-color: #003b9f;
+  background: #003b9f;
+}
+
+.stitch-config-drawer .data-table-wrap {
+  overflow: auto;
+  margin-top: 9px;
+  border: 1px solid var(--stitch-border-soft);
+  border-radius: 4px;
+  background: var(--stitch-surface-bright);
+}
+
+.stitch-config-drawer .device-table-wrap {
+  height: 198px;
+}
+
+.stitch-config-drawer .data-table {
+  width: 100%;
+  min-width: 500px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.stitch-config-drawer .data-table th {
+  height: 32px;
+  padding: 0 10px;
+  color: var(--stitch-label);
+  background: var(--stitch-surface-low);
+  font-size: 11px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.stitch-config-drawer .data-table td {
+  height: 30px;
+  padding: 0 10px;
+  border-top: 1px solid var(--stitch-border-soft);
+  color: var(--stitch-text);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.stitch-config-drawer .device-table th:nth-child(1) { width: 30%; }
+.stitch-config-drawer .device-table th:nth-child(2) { width: 44%; }
+.stitch-config-drawer .device-table th:nth-child(3) { width: 26%; }
+
+.stitch-config-drawer .device-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.stitch-config-drawer .device-icon {
+  color: var(--stitch-label);
+  font-size: 12px;
+}
+
+.stitch-config-drawer .code-text {
+  overflow: hidden;
+  color: var(--stitch-code) !important;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  text-overflow: ellipsis;
+}
+
+.stitch-config-drawer .network-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--stitch-success);
+}
+
+.stitch-config-drawer .network-status.pending {
+  color: var(--stitch-danger);
+}
+
+.stitch-config-drawer .network-status i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.stitch-config-drawer .table-empty-row {
+  height: 76px !important;
+  color: var(--stitch-muted) !important;
+  text-align: center;
+}
+
+.stitch-config-drawer .info-section {
+  margin-top: 18px;
+}
+
+.stitch-config-drawer .info-empty {
+  min-height: 104px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  margin-top: 9px;
+  border: 1px dashed var(--stitch-border);
+  border-radius: 4px;
+  color: var(--stitch-label);
+  background: var(--stitch-surface-low);
+  font-size: 11px;
+}
+
+.stitch-config-drawer .empty-icon {
+  color: var(--stitch-border);
+  font-size: 26px;
+}
+
+.stitch-config-drawer .query-result {
+  min-height: 104px;
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  margin: 9px 0 0;
+  padding: 14px 16px;
+  border: 1px dashed var(--stitch-border);
+  border-radius: 4px;
+  background: var(--stitch-surface-low);
+}
+
+.stitch-config-drawer .query-result > div {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.stitch-config-drawer .query-result dt {
+  color: var(--stitch-muted);
+  font-size: 11px;
+}
+
+.stitch-config-drawer .query-result dd {
+  margin: 0;
+  color: var(--stitch-text);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11px;
+}
+
+.stitch-config-drawer .segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  margin-top: 9px;
+  padding: 3px;
+  border-radius: 4px;
+  background: var(--stitch-surface-low);
+}
+
+.stitch-config-drawer .segmented-control button {
+  height: 28px;
+  border: 0;
+  border-radius: 2px;
+  color: var(--stitch-label);
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.stitch-config-drawer .segmented-control button.active {
+  color: var(--stitch-primary);
+  background: var(--stitch-surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.stitch-config-drawer .scene-table-wrap,
+.stitch-config-drawer .subscription-table-wrap {
+  max-height: 230px;
+}
+
+.stitch-config-drawer .scene-table {
+  min-width: 560px;
+}
+
+.stitch-config-drawer .scene-table th:nth-child(1) { width: 22%; }
+.stitch-config-drawer .scene-table th:nth-child(2) { width: 17%; }
+.stitch-config-drawer .scene-table th:nth-child(3) { width: 29%; }
+.stitch-config-drawer .scene-table th:nth-child(4) { width: 32%; }
+
+.stitch-config-drawer .operation-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stitch-config-drawer .operation-cell button,
+.stitch-config-drawer .query-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  color: var(--stitch-primary);
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.stitch-config-drawer .operation-cell .scene-edit-button {
+  min-height: 24px;
+  padding: 0 7px;
+  border: 1px solid var(--stitch-primary);
+  border-radius: 2px;
+  background: var(--stitch-surface);
+}
+
+.stitch-config-drawer .operation-cell .scene-edit-button .fluent-icon {
+  font-size: 13px;
+}
+
+.stitch-config-drawer .panel-config-grid {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.stitch-config-drawer .panel-diagram {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--stitch-border);
+  border-radius: 3px;
+  background: var(--stitch-surface-low);
+}
+
+.stitch-config-drawer .panel-diagram button {
+  aspect-ratio: 1;
+  border: 1px solid #b7c8e1;
+  border-radius: 2px;
+  color: var(--stitch-primary);
+  background: #d0e1fb;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.stitch-config-drawer .panel-diagram button.active {
+  outline: 2px solid var(--stitch-primary);
+  outline-offset: -2px;
+}
+
+.stitch-config-drawer .panel-diagram > span {
+  grid-column: 1 / -1;
+  padding-top: 3px;
+  color: var(--stitch-label);
+  font-size: 10px;
+  text-align: center;
+}
+
+.stitch-config-drawer .panel-fields {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.stitch-config-drawer .panel-fields label,
+.stitch-config-drawer .stacked-field {
+  display: grid;
+  gap: 5px;
+}
+
+.stitch-config-drawer .dual-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.stitch-config-drawer .dual-actions button {
+  height: 36px;
+  border: 1px solid var(--stitch-primary);
+  border-radius: 2px;
+  color: var(--stitch-primary);
+  background: var(--stitch-surface);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.stitch-config-drawer .dual-actions button.primary {
+  color: #ffffff;
+  background: var(--stitch-primary);
+}
+
+.stitch-config-drawer button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.stitch-config-drawer .subscription-info-section {
+  margin-top: 18px;
+}
+
+.stitch-config-drawer .subscription-form-section {
+  display: grid;
+  gap: 12px;
+}
+
+.stitch-config-drawer .subscription-form-section .section-title-row {
+  margin-bottom: 0;
+}
+
+.stitch-config-drawer .type-field {
+  display: grid;
+  gap: 6px;
+}
+
+.stitch-config-drawer .type-field > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.stitch-config-drawer .type-field button {
+  min-width: 58px;
+  min-height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--stitch-border);
+  border-radius: 14px;
+  color: var(--stitch-label);
+  background: var(--stitch-surface);
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.stitch-config-drawer .type-field button.active {
+  border-color: var(--stitch-primary);
+  color: var(--stitch-primary);
+  background: #eff6ff;
+}
+
+.stitch-config-drawer .query-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stitch-config-drawer .parameter-content {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.stitch-config-drawer .parameter-content .drawer-section {
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--stitch-border);
+  border-radius: 6px;
+  background: var(--stitch-surface-low);
+}
+
+.stitch-config-drawer .parameter-content .section-head {
+  color: var(--stitch-text);
+}
+
+.stitch-config-drawer .parameter-content .section-tag {
+  border-color: var(--stitch-border-soft);
+  border-radius: 2px;
+  color: var(--stitch-label);
+  background: var(--stitch-surface-high);
+}
+
+.stitch-config-drawer .parameter-content .action-btn {
+  min-height: 36px;
+  border-color: var(--stitch-border);
+  border-radius: 2px;
+  color: var(--stitch-text);
+  background: var(--stitch-surface);
+}
+
+.stitch-config-drawer .parameter-content .action-btn.active {
+  border-color: var(--stitch-primary);
+  color: #ffffff;
+  background: var(--stitch-primary);
+}
+
+.stitch-config-drawer .parameter-content .section-desc,
+.stitch-config-drawer .parameter-content .time-copy {
+  color: var(--stitch-muted);
+}
+
+.stitch-config-drawer .parameter-content .metric-card,
+.stitch-config-drawer .parameter-content .time-card {
+  border-color: var(--stitch-border);
+  border-radius: 2px;
+  background: var(--stitch-surface-bright);
+}
+
+.stitch-config-drawer .parameter-content .brightness-select,
+.stitch-config-drawer .parameter-content .time-input-wrap {
+  border-color: var(--stitch-border);
+  border-radius: 2px;
+  color: var(--stitch-primary);
+  background: var(--stitch-surface);
+}
+
+.stitch-config-drawer .parameter-content .brightness-options {
+  border-color: var(--stitch-border);
+  background: var(--stitch-surface);
+}
+
+.stitch-config-drawer .parameter-content .brightness-options button {
+  color: var(--stitch-text-secondary);
+}
+
+.stitch-config-drawer .parameter-content .brightness-options button:hover,
+.stitch-config-drawer .parameter-content .brightness-options button.selected {
+  color: var(--stitch-primary);
+  background: #eff6ff;
+}
+
+.stitch-config-drawer .parameter-content .time-input,
+.stitch-config-drawer .parameter-content .brightness-select input {
+  color: var(--stitch-text);
+  font-family: "JetBrains Mono", Consolas, monospace;
+}
+
+.stitch-config-drawer .drawer-footer {
+  flex: 0 0 66px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-top: 1px solid var(--stitch-border);
+  background: var(--stitch-surface-low);
+}
+
+.stitch-config-drawer .drawer-footer button {
+  width: 100%;
+  height: 36px;
+  border: 1px solid var(--stitch-danger);
+  border-radius: 2px;
+  color: var(--stitch-danger);
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.stitch-config-drawer .drawer-footer button:hover {
+  color: #ffffff;
+  background: var(--stitch-danger);
+}
+
+@media (max-width: 760px) {
+  .stitch-config-drawer {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .stitch-config-drawer .drawer-tabs {
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+
+  .stitch-config-drawer .field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stitch-config-drawer .full-grid-field {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .stitch-config-drawer .panel-config-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stitch-config-drawer .panel-diagram {
+    max-width: 240px;
+  }
+
+  .stitch-config-drawer .dual-actions,
+  .stitch-config-drawer .multicast-actions {
+    grid-template-columns: 1fr;
+  }
+}
 </style>
