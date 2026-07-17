@@ -1,26 +1,27 @@
-const ENV = import.meta.env ?? {}
-const API_BASE = (
-  ENV.VITE_DASHBOARD_API_BASE ||
-  'http://192.168.0.84/SmartIoTWCFService/IoTRESTService.svc'
-).replace(/\/$/, '')
+import { requestIotJson } from './iotRestClient.js'
 
-// TEMPORARY: this is the legacy project's 27F Location GUID, verified to contain
-// dashboard energy history. Replace VITE_DASHBOARD_LOCATION_ID with the current
-// project's real Location GUID after its location hierarchy is available.
-const LEGACY_LOCATION_ID_WITH_DATA = 'ebb8dfeb-8d6f-49e9-8206-c5dbb47e17dd'
-const DEFAULT_LOCATION_ID = ENV.VITE_DASHBOARD_LOCATION_ID || LEGACY_LOCATION_ID_WITH_DATA
-const REQUEST_TIMEOUT = 20_000
 const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export function createEmptyDashboardEnergy() {
   return {
     metrics: {
       todayKWh: null,
+      monthKWh: null,
+      quarterKWh: null,
       yearKWh: null,
+      todaySavedKWh: null,
+      monthSavedKWh: null,
+      quarterSavedKWh: null,
       yearSavedKWh: null,
       savedMoneyYuan: null,
       savingRate: null,
       carbonReductionTons: null
+    },
+    overview: {
+      storeys: null,
+      cus: null,
+      lights: null,
+      warnings: null
     },
     energy: {
       day: createEmptySeries(),
@@ -33,8 +34,9 @@ export function createEmptyDashboardEnergy() {
 }
 
 export async function loadDashboardEnergy({
-  locationId = DEFAULT_LOCATION_ID,
+  locationId,
   fetchImpl = globalThis.fetch,
+  signal,
   now = () => new Date()
 } = {}) {
   if (!GUID_PATTERN.test(locationId)) {
@@ -44,31 +46,14 @@ export async function loadDashboardEnergy({
     throw new Error('当前环境不支持能耗数据请求')
   }
 
-  const controller = new AbortController()
-  const timeoutId = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
-
-  try {
-    const headers = { 'Content-Type': 'application/json;charset=UTF-8' }
-    const token = readAccessToken()
-    if (token) headers.Authorization = `Bearer ${token}`
-
-    const response = await fetchImpl(`${API_BASE}/getdashboard`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ id: locationId }),
-      signal: controller.signal
-    })
-
-    if (!response.ok) throw new Error(`能耗接口请求失败（HTTP ${response.status}）`)
-
-    const result = await response.json()
-    return adaptDashboardEnergy(result?.data ?? result, now().toISOString())
-  } catch (error) {
-    if (error?.name === 'AbortError') throw new Error('能耗接口请求超时')
-    throw error
-  } finally {
-    globalThis.clearTimeout(timeoutId)
-  }
+  const result = await requestIotJson('/getdashboard', {
+    method: 'POST',
+    body: { id: locationId },
+    auth: false,
+    signal,
+    fetchImpl
+  })
+  return adaptDashboardEnergy(result?.data ?? result, now().toISOString())
 }
 
 export function adaptDashboardEnergy(raw = {}, updatedAt = new Date().toISOString()) {
@@ -97,11 +82,22 @@ export function adaptDashboardEnergy(raw = {}, updatedAt = new Date().toISOStrin
   return {
     metrics: {
       todayKWh,
+      monthKWh,
+      quarterKWh,
       yearKWh: toNumber(raw.YTDkWh ?? raw.currentYearkWh),
+      todaySavedKWh,
+      monthSavedKWh,
+      quarterSavedKWh,
       yearSavedKWh: toNumber(raw.YTDSavedkWh),
       savedMoneyYuan: multiply(toNumber(raw.numOfSavedMoney), 10_000),
       savingRate: toNumber(raw.energySavingRatio),
       carbonReductionTons: toNumber(raw.numOfReductionOfCarbonEmissions)
+    },
+    overview: {
+      storeys: toNumber(raw.numOfStoreys),
+      cus: toNumber(raw.numOfCUs),
+      lights: toNumber(raw.numOfLights),
+      warnings: toNumber(raw.numOfWarnings)
     },
     energy: {
       day: normalizeSavingRateSeries(dayReport.DateHours, dayReport.ActualkWh, dayReport.energySavingRatio, {
@@ -118,6 +114,18 @@ export function adaptDashboardEnergy(raw = {}, updatedAt = new Date().toISOStrin
     },
     updatedAt
   }
+}
+
+export function hasDashboardEnergyData(energy) {
+  const metrics = energy?.metrics || {}
+  return [
+    metrics.todayKWh,
+    metrics.monthKWh,
+    metrics.quarterKWh,
+    metrics.yearKWh,
+    metrics.yearSavedKWh,
+    metrics.savingRate
+  ].some((value) => value !== null)
 }
 
 function createEmptySeries() {
@@ -203,9 +211,4 @@ function toNumber(value) {
   if (value === null || value === undefined || value === '') return null
   const number = Number(value)
   return Number.isFinite(number) ? number : null
-}
-
-function readAccessToken() {
-  if (typeof window === 'undefined') return ''
-  return window.sessionStorage?.getItem('token') || window.localStorage?.getItem('token') || ''
 }

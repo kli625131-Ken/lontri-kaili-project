@@ -1,6 +1,16 @@
-import { loadLocalDraft } from './deviceMapLocalService'
+import {
+  hasDashboardEnergyData,
+  loadDashboardEnergy
+} from './dashboardEnergyApi.js'
+import { requestIotJson, unwrapWcfData } from './iotRestClient.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+const SUMMARY_CACHE_TTL = 60_000
+const ENV = import.meta.env ?? {}
+const AREA_REPORT_PATH = String(
+  ENV.VITE_ENERGY_AREA_REPORT_PATH || '/GetReportAreasByLocationID'
+).trim()
+const dashboardSummaryCache = new Map()
 
 export function parseDate(value) {
   if (value instanceof Date) return new Date(value.getFullYear(), value.getMonth(), value.getDate())
@@ -44,211 +54,378 @@ export function createPreviousPeriod(startDate, endDate) {
   }
 }
 
-export function resolveTrendGranularity(dayCount) {
-  if (dayCount <= 31) return 'day'
-  if (dayCount <= 180) return 'week'
-  return 'month'
-}
-
-export async function loadEnergyRankingAreas(scopeNode, mapConfig) {
-  const mapNodes = collectMapNodes(scopeNode)
-    .filter((node) => mapConfig[node.mapId]?.available !== false)
-  const showFloorLabel = mapNodes.length > 1
-  const regionGroups = await Promise.all(mapNodes.map(async (mapNode) => {
-    const regions = await loadMapRegions(mapNode.mapId, mapConfig[mapNode.mapId])
-    return regions.map((region) => ({
-      id: `${mapNode.mapId}:${region.id}`,
-      name: showFloorLabel ? `${mapNode.label} · ${region.name}` : region.name
-    }))
-  }))
-
-  const uniqueAreas = new Map()
-  regionGroups.flat().forEach((area) => uniqueAreas.set(area.id, area))
-  return Array.from(uniqueAreas.values())
-}
-
-// 当前仓库没有能耗分析接口；该适配器集中提供可联动的演示数据。
-// 后续接入真实接口时，保持返回结构不变即可，无需改动页面筛选和图表逻辑。
-export function createEnergyAnalysisSnapshot(filters) {
-  const startDate = parseDate(filters.startDate)
-  const endDate = parseDate(filters.endDate)
+export function createEmptyEnergyAnalysisSnapshot(filters = {}) {
+  const startDate = parseDate(filters.startDate || new Date())
+  const endDate = parseDate(filters.endDate || new Date())
   const previousPeriod = createPreviousPeriod(startDate, endDate)
-  const dayCount = getInclusiveDayCount(startDate, endDate)
-  const granularity = resolveTrendGranularity(dayCount)
-  const currentDaily = createDailySeries(startDate, endDate, filters)
-  const previousDaily = createDailySeries(previousPeriod.startDate, previousPeriod.endDate, filters)
-  const trend = aggregateTrend(currentDaily, granularity)
-  const comparisonSeries = createComparisonSeries(currentDaily, previousDaily, granularity)
-  const currentEnergy = sumEnergy(currentDaily)
-  const previousEnergy = sumEnergy(previousDaily)
-  const changeValue = currentEnergy - previousEnergy
-  const changeRate = previousEnergy > 0 ? (changeValue / previousEnergy) * 100 : null
+  return {
+    summary: {
+      monthKWh: null,
+      yearKWh: null,
+      yearSavedKWh: null,
+      savingRate: null,
+      targetValue: null,
+      targetUnit: null,
+      goalCompletion: null
+    },
+    trend: [],
+    trendGranularity: null,
+    trendSourceLabel: '',
+    ranking: [],
+    rankingSourceLabel: '',
+    comparison: {
+      currentPeriod: { startDate, endDate, energy: null },
+      previousPeriod: { ...previousPeriod, energy: null },
+      series: [],
+      changeValue: null,
+      changeRate: null,
+      status: 'unknown',
+      comparable: false
+    },
+    states: {
+      summary: createState('loading', '能耗汇总加载中'),
+      trend: createState('loading', '能耗趋势加载中'),
+      comparison: createState('loading', '环比数据加载中'),
+      target: createState('loading', '节能目标加载中'),
+      ranking: createState('loading', '区域排行加载中')
+    }
+  }
+}
+
+export async function loadEnergyAnalysisSnapshot(filters, { signal } = {}) {
+  const snapshot = createEmptyEnergyAnalysisSnapshot(filters)
+  if (!filters?.locationId) throw new Error('未选择有效的能耗统计范围')
+
+  const payload = createAnalysisPayload(filters)
+  const summaryRequest = loadCachedDashboardEnergy(filters.locationId, signal)
+  const comparisonRequest = requestIotJson('/getenergycomparisonreport', {
+    method: 'POST',
+    body: payload,
+    auth: false,
+    signal
+  })
+  const targetRequest = requestIotJson('/getenergyconservationtarget', {
+    method: 'POST',
+    body: createAnnualTargetPayload(filters),
+    auth: false,
+    signal
+  })
+  const rankingRequest = filters.locationLevel === 'storey' && AREA_REPORT_PATH
+    ? requestIotJson(AREA_REPORT_PATH, {
+      method: 'POST',
+      body: { StoreyID: filters.locationId, Name: '' },
+      auth: false,
+      signal
+    })
+    : loadChildLocationRanking(filters, signal)
+
+  const [summaryResult, comparisonResult, targetResult, rankingResult] = await Promise.allSettled([
+    summaryRequest,
+    comparisonRequest,
+    targetRequest,
+    rankingRequest
+  ])
+
+  applySummaryResult(snapshot, summaryResult, filters)
+  applyComparisonResult(snapshot, comparisonResult)
+  applyTargetResult(snapshot, targetResult)
+  applyRankingResult(snapshot, rankingResult, filters.locationLevel)
+  return snapshot
+}
+
+async function loadCachedDashboardEnergy(locationId, signal) {
+  const cached = dashboardSummaryCache.get(locationId)
+  if (cached && cached.expiresAt > Date.now()) return cached.value
+  const value = await loadDashboardEnergy({ locationId, signal })
+  dashboardSummaryCache.set(locationId, { value, expiresAt: Date.now() + SUMMARY_CACHE_TTL })
+  return value
+}
+
+function createAnalysisPayload(filters) {
+  return {
+    start: formatDate(filters.startDate),
+    end: formatDate(filters.endDate),
+    id: null,
+    sid: 'all',
+    realLocationId: filters.locationId,
+    deviceType: mapDeviceType(filters.deviceType),
+    granularity: 'auto',
+    initiFlag: false
+  }
+}
+
+function createAnnualTargetPayload(filters) {
+  const today = parseDate(new Date())
+  return createAnalysisPayload({
+    ...filters,
+    startDate: new Date(today.getFullYear(), 0, 1),
+    endDate: today
+  })
+}
+
+async function loadChildLocationRanking(filters, signal) {
+  const children = Array.isArray(filters.childLocations)
+    ? filters.childLocations.filter((item) => item?.locationId)
+    : []
+  const metric = getRankingMetric(filters.preset)
+  if (!children.length || !metric) {
+    return {
+      kind: 'children',
+      items: [],
+      unsupportedPreset: !metric,
+      childCount: children.length
+    }
+  }
+
+  const results = await Promise.allSettled(children.map(async (child) => {
+    const energy = await loadCachedDashboardEnergy(child.locationId, signal)
+    return {
+      id: child.id || child.locationId,
+      name: child.label || child.locationId,
+      value: energy.metrics[metric.field]
+    }
+  }))
 
   return {
-    trend,
-    granularity,
-    ranking: createRanking(currentEnergy, filters, filters.rankingAreas),
-    comparison: {
-      currentPeriod: { startDate, endDate, energy: currentEnergy },
-      previousPeriod: { ...previousPeriod, energy: previousEnergy },
-      series: comparisonSeries,
-      changeValue,
-      changeRate,
-      status: resolveComparisonStatus(changeRate),
-      comparable: previousEnergy > 0
-    }
+    kind: 'children',
+    sourceLabel: metric.label,
+    childCount: children.length,
+    items: results
+      .filter((result) => result.status === 'fulfilled')
+      .map((result) => result.value)
+      .filter((item) => Number.isFinite(item.value))
   }
 }
 
-function createDailySeries(startDate, endDate, filters) {
-  const result = []
-  const seed = hashString(`${filters.areaId}:${filters.deviceType}`)
-  const areaFactor = filters.areaLevel === 'building' ? 2.8 : 1
-
-  for (let cursor = parseDate(startDate); cursor <= endDate; cursor = addDays(cursor, 1)) {
-    const dayIndex = Math.floor(cursor.getTime() / DAY_MS)
-    const weekdayFactor = [0.82, 1.02, 1.08, 1.05, 1.1, 1.04, 0.9][cursor.getDay()]
-    const seasonalFactor = 1 + Math.sin((cursor.getMonth() / 12) * Math.PI * 2) * 0.08
-    const variation = 0.9 + (((dayIndex * 17 + seed) % 23) / 100)
-    const value = Math.round(1120 * areaFactor * weekdayFactor * seasonalFactor * variation)
-    result.push({ date: parseDate(cursor), value })
-  }
-
-  return result
+function getRankingMetric(preset) {
+  if (preset === 'today') return { field: 'todayKWh', label: '下级范围当日能耗' }
+  if (preset === 'month-1') return { field: 'monthKWh', label: '下级范围本月能耗' }
+  if (preset === 'year-1') return { field: 'yearKWh', label: '下级范围本年能耗' }
+  return null
 }
 
-function aggregateTrend(dailySeries, granularity) {
-  if (granularity === 'day') {
-    return dailySeries.map((item) => ({ label: formatDateLabel(item.date), value: item.value }))
+function applySummaryResult(snapshot, result, filters) {
+  if (result.status === 'rejected') {
+    snapshot.states.summary = createState('error', friendlyError(result.reason, '能耗汇总请求失败'))
+    snapshot.states.trend = createState('error', friendlyError(result.reason, '能耗趋势请求失败'))
+    return
   }
 
-  const buckets = []
-  const bucketMap = new Map()
+  const energy = result.value
+  snapshot.summary.monthKWh = energy.metrics.monthKWh
+  snapshot.summary.yearKWh = energy.metrics.yearKWh
+  snapshot.summary.yearSavedKWh = energy.metrics.yearSavedKWh
+  snapshot.summary.savingRate = energy.metrics.savingRate
+  snapshot.states.summary = hasDashboardEnergyData(energy)
+    ? createState('success', '')
+    : createState('empty', '当前统计范围暂无能耗数据')
 
-  dailySeries.forEach((item, index) => {
-    const key = granularity === 'week'
-      ? `week-${Math.floor(index / 7)}`
-      : `${item.date.getFullYear()}-${item.date.getMonth() + 1}`
-    let bucket = bucketMap.get(key)
-    if (!bucket) {
-      bucket = { start: item.date, end: item.date, value: 0 }
-      bucketMap.set(key, bucket)
-      buckets.push(bucket)
-    }
-    bucket.end = item.date
-    bucket.value += item.value
-  })
+  const hourlyTrend = energy.energy.day.xAxisData.map((label, index) => ({
+    label,
+    value: energy.energy.day.current[index]
+  })).filter((item) => Number.isFinite(item.value))
+  const recentTrend = energy.trend.days.map((label, index) => ({
+    label,
+    value: energy.trend.actualKWh[index]
+  })).filter((item) => Number.isFinite(item.value))
 
-  return buckets.map((bucket) => ({
-    label: granularity === 'week'
-      ? `${formatDateLabel(bucket.start)}~${formatDateLabel(bucket.end)}`
-      : `${bucket.start.getFullYear()}/${String(bucket.start.getMonth() + 1).padStart(2, '0')}`,
-    value: bucket.value
-  }))
+  if (filters.preset === 'today' && hourlyTrend.length > 1) {
+    snapshot.trend = hourlyTrend
+    snapshot.trendGranularity = 'hour'
+    snapshot.trendSourceLabel = '接口当日24小时数据'
+  } else if (recentTrend.length) {
+    // /getdashboard 的近 30 天趋势是独立数据源，不依赖环比接口或 JWT。
+    snapshot.trend = recentTrend
+    snapshot.trendGranularity = 'day'
+    snapshot.trendSourceLabel = '接口固定近30天数据'
+  } else if (hourlyTrend.length) {
+    snapshot.trend = hourlyTrend.map((item) => ({
+      label: item.label,
+      value: item.value
+    }))
+    snapshot.trendGranularity = 'hour'
+    snapshot.trendSourceLabel = '接口当日24小时数据'
+  }
+
+  snapshot.states.trend = snapshot.trend.length
+    ? createState('success', '')
+    : createState('empty', '后端 /getdashboard 未返回当前统计范围的趋势点')
 }
 
-function createComparisonSeries(currentDaily, previousDaily, granularity) {
-  const currentBuckets = aggregateTrend(currentDaily, granularity)
-  const previousBuckets = aggregateTrend(previousDaily, granularity)
-  const bucketCount = Math.max(currentBuckets.length, previousBuckets.length)
+function applyComparisonResult(snapshot, result) {
+  if (result.status === 'rejected') {
+    snapshot.states.comparison = createState('error', friendlyError(result.reason, '能耗环比请求失败'))
+    return
+  }
 
-  return Array.from({ length: bucketCount }, (_, index) => {
-    const current = currentBuckets[index]
-    const previous = previousBuckets[index]
-    const currentValue = Number.isFinite(current?.value) ? current.value : null
-    const previousValue = Number.isFinite(previous?.value) ? previous.value : null
-    const difference = currentValue !== null && previousValue !== null
-      ? currentValue - previousValue
-      : null
-    const changeRate = difference !== null && previousValue > 0
-      ? (difference / previousValue) * 100
-      : null
+  const data = unwrapWcfData(result.value)
+  if (!data || typeof data !== 'object') {
+    snapshot.states.comparison = createState('empty', '能耗环比接口未返回有效数据')
+    return
+  }
+  if (data.success === false) {
+    snapshot.states.comparison = createState('error', data.message || '能耗环比接口返回失败')
+    return
+  }
 
+  const currentTotal = toNumber(data.currentTotalKWh)
+  const previousTotal = toNumber(data.previousTotalKWh)
+  const difference = toNumber(data.differenceKWh)
+  const changeRate = toNumber(data.changeRate)
+  const series = (Array.isArray(data.points) ? data.points : []).map((point, index) => {
+    const currentValue = toNumber(point.currentKWh)
+    const previousValue = toNumber(point.previousKWh)
     return {
-      label: current?.label || previous?.label || '',
-      currentLabel: current?.label || '--',
-      previousLabel: previous?.label || '--',
+      label: formatComparisonPointLabel(point.currentStart, index),
+      currentLabel: formatComparisonPointLabel(point.currentStart, index),
+      previousLabel: formatComparisonPointLabel(point.previousStart, index),
       currentValue,
       previousValue,
-      difference,
-      changeRate
+      difference: toNumber(point.differenceKWh),
+      changeRate: toNumber(point.changeRate)
     }
   })
+
+  snapshot.comparison = {
+    currentPeriod: {
+      startDate: data.currentStart ? parseDate(data.currentStart) : snapshot.comparison.currentPeriod.startDate,
+      endDate: data.currentEnd ? parseDate(data.currentEnd) : snapshot.comparison.currentPeriod.endDate,
+      energy: currentTotal
+    },
+    previousPeriod: {
+      startDate: data.previousStart ? parseDate(data.previousStart) : snapshot.comparison.previousPeriod.startDate,
+      endDate: data.previousEnd ? parseDate(data.previousEnd) : snapshot.comparison.previousPeriod.endDate,
+      energy: previousTotal
+    },
+    series,
+    changeValue: difference,
+    changeRate,
+    status: changeRate === null ? 'unknown' : changeRate > 0 ? 'up' : changeRate < 0 ? 'down' : 'flat',
+    comparable: currentTotal !== null && previousTotal !== null
+  }
+  snapshot.states.comparison = snapshot.comparison.comparable || series.some((item) => (
+    item.currentValue !== null || item.previousValue !== null
+  ))
+    ? createState('success', '')
+    : createState('empty', '当前周期和对比周期均无能耗数据')
 }
 
-function createRanking(totalEnergy, filters, rankingAreas = []) {
-  if (!Number.isFinite(totalEnergy) || totalEnergy <= 0 || !rankingAreas.length) return []
-  const seed = `${filters.areaId}:${filters.deviceType}:${formatDate(filters.startDate)}`
-  const weightedAreas = rankingAreas.map((area) => ({
-    ...area,
-    weight: 0.86 + (hashString(`${seed}:${area.id}`) % 29) / 100
+function formatComparisonPointLabel(value, index) {
+  const label = String(value || '').trim()
+  return label ? label.slice(5) : `第${index + 1}点`
+}
+
+function applyTargetResult(snapshot, result) {
+  if (result.status === 'rejected') {
+    snapshot.states.target = createState('error', friendlyError(result.reason, '节能目标请求失败'))
+    return
+  }
+
+  const value = toNumber(unwrapWcfData(result.value))
+  if (value === null) {
+    snapshot.states.target = createState('empty', '节能目标接口未返回有效数值')
+    return
+  }
+
+  snapshot.summary.targetValue = value
+  snapshot.summary.targetUnit = 'kWh'
+
+  const yearSavedKWh = snapshot.summary.yearSavedKWh
+  if (value <= 0) {
+    snapshot.summary.goalCompletion = null
+    snapshot.states.target = createState('empty', '年度节能目标必须大于 0')
+    return
+  }
+
+  // 目标接口返回年度节能目标值；完成量使用同一统计范围
+  // /getdashboard.YTDSavedkWh，二者单位均按 kWh 计算。
+  snapshot.summary.goalCompletion = Number.isFinite(yearSavedKWh)
+    ? Number(((yearSavedKWh / value) * 100).toFixed(2))
+    : null
+  snapshot.states.target = Number.isFinite(yearSavedKWh)
+    ? createState('success', '')
+    : createState('empty', '当前统计范围未返回年度节约量，无法计算完成度')
+}
+
+function applyRankingResult(snapshot, result, locationLevel) {
+  if (result.status === 'rejected') {
+    snapshot.states.ranking = createState('error', friendlyError(result.reason, '区域能耗接口请求失败'))
+    return
+  }
+
+  if (result.value?.kind === 'children') {
+    if (result.value.unsupportedPreset) {
+      snapshot.states.ranking = createState(
+        'unsupported',
+        '现有接口无法按近3月、近6月或自定义区间生成下级能耗排行'
+      )
+      return
+    }
+    if (!result.value.childCount) {
+      snapshot.states.ranking = createState('empty', '当前统计范围没有可排行的下级节点')
+      return
+    }
+    snapshot.ranking = normalizeRanking(result.value.items)
+    snapshot.rankingSourceLabel = result.value.sourceLabel || ''
+    snapshot.states.ranking = snapshot.ranking.length
+      ? createState('success', '')
+      : createState('empty', `后端未返回 ${result.value.childCount} 个下级范围的能耗数据`)
+    return
+  }
+
+  if (locationLevel !== 'storey') {
+    snapshot.states.ranking = createState(
+      'unsupported',
+      '现有接口样例只接受 StoreyID，暂不支持当前层级的下级能耗排行'
+    )
+    return
+  }
+  if (!AREA_REPORT_PATH) {
+    snapshot.states.ranking = createState(
+      'unsupported',
+      '未配置区域能耗接口路径 VITE_ENERGY_AREA_REPORT_PATH'
+    )
+    return
+  }
+  const data = unwrapWcfData(result.value)
+  if (!Array.isArray(data) || !data.length) {
+    snapshot.states.ranking = createState('empty', '当前楼层暂无区域能耗数据')
+    return
+  }
+
+  // Apipost has no verified response schema for this endpoint. Preserve the real
+  // response boundary and wait for field confirmation instead of guessing values.
+  snapshot.states.ranking = createState('unsupported', '区域接口已返回数据，但能耗字段名称尚未确认')
+}
+
+function normalizeRanking(items) {
+  const sorted = (Array.isArray(items) ? items : [])
+    .filter((item) => Number.isFinite(item?.value))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10)
+  const max = sorted[0]?.value || 0
+  return sorted.map((item) => ({
+    ...item,
+    percent: max > 0 ? Number(((item.value / max) * 100).toFixed(2)) : 0
   }))
-  const totalWeight = weightedAreas.reduce((sum, area) => sum + area.weight, 0)
-  const weighted = weightedAreas.map((area) => ({
-    id: area.id,
-    name: area.name,
-    value: Math.round(totalEnergy * (area.weight / totalWeight))
-  })).sort((a, b) => b.value - a.value).slice(0, 10)
-  const maximum = weighted[0]?.value || 1
-  return weighted.map((item) => ({ ...item, percent: Math.round((item.value / maximum) * 100) }))
 }
 
-async function loadMapRegions(mapId, config) {
-  if (!mapId || !config?.dataUrl) return []
-
-  const savedRegions = loadLocalDraft(mapId)?.overlay?.regions
-  if (Array.isArray(savedRegions) && savedRegions.length) {
-    return normalizeRegions(savedRegions)
-  }
-
-  try {
-    const response = await fetch(config.dataUrl)
-    if (!response.ok) throw new Error(`${config.dataUrl} request failed: ${response.status}`)
-    const data = await response.json()
-    const sourceRegions = Array.isArray(data.regions)
-      ? data.regions
-      : Array.isArray(data.Regions)
-        ? data.Regions.filter((region) => (
-          (region.Points || region.SvgPoints || []).length >= 3
-        ))
-        : []
-    return normalizeRegions(sourceRegions)
-  } catch (error) {
-    console.warn(`读取区域排行数据失败: ${mapId}`, error)
-    return []
-  }
+function mapDeviceType(value) {
+  return value === 'lighting' ? 'Light' : String(value || 'Light')
 }
 
-function normalizeRegions(regions) {
-  return regions
-    .map((region, index) => ({
-      id: String(region.id || region.Id || region.code || region.Code || `region-${index + 1}`),
-      name: String(region.name || region.Name || region.code || region.Code || '').trim()
-    }))
-    .filter((region) => region.name)
+function createState(status, message) {
+  return { status, message }
 }
 
-function collectMapNodes(node) {
-  if (!node) return []
-  if (node.mapId) return [node]
-  return (node.children || []).flatMap(collectMapNodes)
+function friendlyError(error, fallback) {
+  if (error?.status === 401) return '接口返回401，请确认后端服务版本或访问策略'
+  if (error?.status === 404) return '后端未发布文档中的接口路径（HTTP 404）'
+  return error instanceof Error && error.message ? error.message : fallback
 }
 
-function sumEnergy(series) {
-  if (!Array.isArray(series) || !series.length) return 0
-  return series.reduce((sum, item) => sum + (Number.isFinite(item.value) ? item.value : 0), 0)
-}
-
-function resolveComparisonStatus(rate) {
-  if (rate === null || !Number.isFinite(rate)) return 'unavailable'
-  if (Math.abs(rate) < 1) return 'flat'
-  return rate > 0 ? 'up' : 'down'
-}
-
-function formatDateLabel(date) {
-  return `${date.getMonth() + 1}/${date.getDate()}`
-}
-
-function hashString(value) {
-  return [...String(value)].reduce((hash, char) => ((hash * 31) + char.charCodeAt(0)) >>> 0, 7)
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
 }

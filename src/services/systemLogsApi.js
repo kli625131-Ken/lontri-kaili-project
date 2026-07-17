@@ -5,10 +5,11 @@ import {
   alreadyProcessedResponse,
   operationLogsResponse,
 } from "../mock/systemLogsMock.js";
+import { IOT_REST_API_BASE } from "../config/iotService.js";
 
 const MOCK_DELAY = 240;
 const REQUEST_TIMEOUT = 12000;
-const API_BASE = (import.meta.env.VITE_IOT_API_BASE || "/iot-api").replace(/\/$/, "");
+const API_BASE = IOT_REST_API_BASE;
 export const isSystemLogsMockMode =
   import.meta.env.VITE_SYSTEM_LOGS_USE_MOCK === "true";
 
@@ -73,11 +74,7 @@ export async function queryOperationLogs({ page = 1, pageSize = 30 } = {}) {
 }
 
 export async function queryAlarms(payload = {}) {
-  if (!isSystemLogsMockMode) {
-    const result = await post("/alarm/query", payload);
-    if (!Array.isArray(result.data)) throw new Error("告警列表返回字段缺失");
-    return result;
-  }
+  if (!isSystemLogsMockMode) return queryAlarmsFromApi(payload);
   const page = Number(payload.page || alarmsResponse.page);
   const pageSize = Number(payload.pageSize || alarmsResponse.pageSize);
   return resolveMock({
@@ -86,6 +83,14 @@ export async function queryAlarms(payload = {}) {
     page,
     pageSize,
   });
+}
+
+// Dashboard must always use the real alarm source even when the system-log page
+// is temporarily configured in mock mode for independent UI development.
+export async function queryAlarmsFromApi(payload = {}) {
+  const result = await post("/alarm/query", payload);
+  if (!Array.isArray(result.data)) throw new Error("告警列表返回字段缺失");
+  return result;
 }
 
 export async function getAlarmDetail(eventId) {

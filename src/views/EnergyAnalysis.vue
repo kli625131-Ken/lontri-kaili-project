@@ -48,7 +48,9 @@
 
         <div class="filter-section area-filter-section">
           <div class="filter-title"><span class="filter-icon">区</span>区域导航</div>
-          <div class="area-hint">可选择整栋建筑或楼层</div>
+          <div class="area-hint">默认 Lontri，可按真实物理层级向下选择</div>
+          <p v-if="hierarchyLoading" class="filter-state">物理层级加载中...</p>
+          <p v-else-if="hierarchyError" class="filter-error">{{ hierarchyError }}</p>
           <div class="area-tree">
             <EnergyAreaTreeNode
               v-for="project in areaTree"
@@ -68,24 +70,28 @@
       <div class="right-section">
         <div class="kpi-row">
           <div class="kpi-card">
-            <div class="kpi-header"><span class="kpi-label">本月能耗(kWh)</span><span class="kpi-icon">月</span></div>
-            <div class="kpi-value">45,280<span class="kpi-trend up">↑1.2%</span></div>
-            <div class="kpi-progress"><div class="progress-bar"><div class="progress-fill" :style="kpiProgressFillStyle(65)"></div></div></div>
+            <span class="kpi-bg-icon" :style="{ '--kpi-icon-mask': `url(${monthEnergyBackgroundIcon})` }" aria-hidden="true"></span>
+            <div class="kpi-header"><span class="kpi-label">本月能耗(kWh)</span></div>
+            <div class="kpi-value">{{ formatMetric(analysisSnapshot.summary.monthKWh) }}<span class="kpi-sub">{{ summaryHint }}</span></div>
+            <div class="kpi-progress"><div class="progress-bar"><div class="progress-fill" :style="kpiProgressFillStyle(0)"></div></div></div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-header"><span class="kpi-label">本年能耗(kWh)</span><span class="kpi-icon">年</span></div>
-            <div class="kpi-value">520,150<span class="kpi-trend down">↓1.2%</span></div>
-            <div class="kpi-progress"><div class="progress-bar"><div class="progress-fill" :style="kpiProgressFillStyle(78)"></div></div></div>
+            <span class="kpi-bg-icon" :style="{ '--kpi-icon-mask': `url(${yearEnergyBackgroundIcon})` }" aria-hidden="true"></span>
+            <div class="kpi-header"><span class="kpi-label">本年能耗(kWh)</span></div>
+            <div class="kpi-value">{{ formatMetric(analysisSnapshot.summary.yearKWh) }}<span class="kpi-sub">当前所选范围</span></div>
+            <div class="kpi-progress"><div class="progress-bar"><div class="progress-fill" :style="kpiProgressFillStyle(0)"></div></div></div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-header"><span class="kpi-label">节约率(%)</span><span class="kpi-icon green">率</span></div>
-            <div class="kpi-value">15.8%<span class="kpi-sub">同比上季度</span></div>
-            <div class="kpi-progress"><div class="progress-bar"><div class="progress-fill" :style="kpiProgressFillStyle(15.8)"></div></div></div>
+            <span class="kpi-bg-icon" :style="{ '--kpi-icon-mask': `url(${savingRateBackgroundIcon})` }" aria-hidden="true"></span>
+            <div class="kpi-header"><span class="kpi-label">节约率(%)</span></div>
+            <div class="kpi-value">{{ formatPercent(analysisSnapshot.summary.savingRate) }}<span class="kpi-sub">接口原始节约率</span></div>
+            <div class="kpi-progress"><div class="progress-bar"><div class="progress-fill" :style="kpiProgressFillStyle(analysisSnapshot.summary.savingRate || 0)"></div></div></div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-header"><span class="kpi-label">节能目标完成度</span><span class="kpi-icon green">标</span></div>
-            <div class="kpi-value"><span :style="kpiGoalValueStyle">82%</span><span class="kpi-sub">目标: 630,000</span></div>
-            <div class="kpi-progress"><div class="progress-bar"><div class="progress-fill" :style="kpiProgressFillStyle(82)"></div></div></div>
+            <span class="kpi-bg-icon" :style="{ '--kpi-icon-mask': `url(${goalCompletionBackgroundIcon})` }" aria-hidden="true"></span>
+            <div class="kpi-header"><span class="kpi-label">节能目标完成度</span></div>
+            <div class="kpi-value"><span :style="kpiGoalValueStyle">{{ formatPercent(analysisSnapshot.summary.goalCompletion) }}</span><span class="kpi-sub">{{ targetHint }}</span></div>
+            <div class="kpi-progress"><div class="progress-bar"><div class="progress-fill" :style="kpiProgressFillStyle(analysisSnapshot.summary.goalCompletion || 0)"></div></div></div>
           </div>
         </div>
 
@@ -94,12 +100,12 @@
             <div class="module-header-extra">
               <span class="filter-chip area-chip" :title="areaRangeLabel">{{ areaTagLabel }}</span>
               <span class="filter-chip">{{ selectedDeviceType?.label || '--' }}</span>
-              <span class="filter-chip time-chip" :title="timeRangeLabel">{{ timeRangeTagLabel }}</span>
+              <span class="filter-chip time-chip" :title="trendTimeLabel">{{ trendTimeLabel }}</span>
               <span class="unit-label">单位: kWh</span>
             </div>
           </template>
           <div v-if="analysisSnapshot.trend.length" ref="trendChart" class="chart-container"></div>
-          <div v-else class="empty-state">暂无能耗趋势数据</div>
+          <div v-else class="empty-state">{{ stateMessage(analysisSnapshot.states.trend, '暂无能耗趋势数据') }}</div>
         </DataCard>
 
         <div class="bottom-charts">
@@ -108,7 +114,7 @@
               <div class="module-header-extra">
                 <span class="filter-chip area-chip" :title="areaRangeLabel">{{ areaTagLabel }}</span>
                 <span class="filter-chip">{{ selectedDeviceType?.label || '--' }}</span>
-                <span class="filter-chip time-chip" :title="timeRangeLabel">{{ timeRangeTagLabel }}</span>
+                <span class="filter-chip time-chip" :title="rankingTimeLabel">{{ rankingTimeLabel }}</span>
                 <span class="unit-label">单位: kWh</span>
               </div>
             </template>
@@ -120,7 +126,7 @@
                 <span class="rank-value">{{ formatEnergy(item.value) }}</span>
               </div>
             </div>
-            <div v-else class="empty-state">{{ rankingLoading ? '区域排行数据加载中' : '暂无区域排行数据' }}</div>
+            <div v-else class="empty-state">{{ stateMessage(analysisSnapshot.states.ranking, '暂无区域排行数据') }}</div>
           </DataCard>
 
           <DataCard title="能耗环比分析" class="compare-card module-card">
@@ -141,7 +147,7 @@
               <div ref="compareChart" class="compare-chart"></div>
               <div v-if="currentPeriodIncludesToday" class="comparison-data-note">当前周期数据统计截至当前时间</div>
             </div>
-            <div v-else class="empty-state">暂无可比数据</div>
+            <div v-else class="empty-state">{{ stateMessage(analysisSnapshot.states.comparison, '暂无可比数据') }}</div>
           </DataCard>
         </div>
       </div>
@@ -153,20 +159,20 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import DataCard from '../components/DataCard.vue'
 import EnergyAreaTreeNode from '../components/energy/EnergyAreaTreeNode.vue'
+import monthEnergyBackgroundIcon from '../assets/images/nenghao/本月能耗背景icon.svg'
+import yearEnergyBackgroundIcon from '../assets/images/nenghao/本年能耗背景icon.svg'
+import savingRateBackgroundIcon from '../assets/images/nenghao/节约率背景icon.svg'
+import goalCompletionBackgroundIcon from '../assets/images/nenghao/目标完成度背景icon.svg'
 import { ENABLED_PROJECT_DEVICE_TYPES } from '../config/projectCapabilities'
 import {
-  DEFAULT_DEVICE_VISUALIZATION_MAP_ID,
-  DEVICE_VISUALIZATION_MAPS,
-  DEVICE_VISUALIZATION_MAP_TREE
-} from '../config/deviceVisualizationMaps'
-import {
   addDays,
-  createEnergyAnalysisSnapshot,
+  createEmptyEnergyAnalysisSnapshot,
   formatDate,
-  loadEnergyRankingAreas,
+  loadEnergyAnalysisSnapshot,
   parseDate,
   subtractCalendarMonths
 } from '../services/energyAnalysisService'
+import { loadEnergyLocationHierarchy } from '../services/locationHierarchyApi.js'
 
 const ENERGY_ANALYSIS_COLORS = {
   trend: '#55d8ff',
@@ -195,22 +201,21 @@ const timePresets = [
 
 const today = parseDate(new Date())
 const todayValue = formatDate(today)
-const selectedPreset = ref('month-6')
+const selectedPreset = ref('month-1')
 const customStartDate = ref(formatDate(addDays(subtractCalendarMonths(today, 1), 1)))
 const customEndDate = ref(todayValue)
 const appliedCustomRange = ref({ startDate: parseDate(customStartDate.value), endDate: today })
 const dateValidationError = ref('')
 const deviceTypes = ENABLED_PROJECT_DEVICE_TYPES
 const selectedType = ref(deviceTypes[0]?.value || '')
-const areaTree = DEVICE_VISUALIZATION_MAP_TREE
-const areaMapConfig = DEVICE_VISUALIZATION_MAPS
-const initialAreaPath = findNodePath(areaTree, (node) => node.mapId === DEFAULT_DEVICE_VISUALIZATION_MAP_ID)
-const initialAreaNode = initialAreaPath.at(-1) || areaTree[0]
-const selectedArea = ref(normalizeSelectedArea(initialAreaNode))
-const expandedTreeIds = ref(new Set(collectExpandableIds(areaTree)))
-const rankingAreas = ref([])
-const rankingLoading = ref(false)
-let rankingLoadToken = 0
+const areaTree = ref([])
+const areaMapConfig = {}
+const selectedArea = ref(normalizeSelectedArea(null))
+const expandedTreeIds = ref(new Set())
+const hierarchyLoading = ref(true)
+const hierarchyError = ref('')
+let analysisRequestId = 0
+let analysisAbortController = null
 
 const trendChart = ref(null)
 const compareChart = ref(null)
@@ -242,24 +247,17 @@ const timeRangeTagLabel = computed(() => {
     : `${start}~${end}`
 })
 const areaRangeLabel = computed(() => (
-  selectedArea.value.level === 'building'
-    ? `${selectedArea.value.label}（整栋建筑）`
-    : selectedArea.value.label
+  selectedArea.value.locationId
+    ? `${selectedArea.value.label}（${selectedArea.value.levelLabel}）`
+    : '未选择统计范围'
 ))
 const areaTagLabel = computed(() => selectedArea.value.label)
-const selectedAreaNode = computed(() => (
-  findNodePath(areaTree, (node) => node.id === selectedArea.value.id).at(-1) || initialAreaNode
-))
 const currentPeriodIncludesToday = computed(() => (
   formatDate(dateRange.value.startDate) <= todayValue && formatDate(dateRange.value.endDate) >= todayValue
 ))
-const analysisSnapshot = computed(() => createEnergyAnalysisSnapshot({
-  areaId: selectedArea.value.id,
-  areaLevel: selectedArea.value.level,
-  deviceType: selectedType.value,
+const analysisSnapshot = ref(createEmptyEnergyAnalysisSnapshot({
   startDate: dateRange.value.startDate,
-  endDate: dateRange.value.endDate,
-  rankingAreas: rankingAreas.value
+  endDate: dateRange.value.endDate
 }))
 const comparison = computed(() => analysisSnapshot.value.comparison)
 const comparisonHasData = computed(() => (
@@ -269,7 +267,7 @@ const comparisonHasData = computed(() => (
 ))
 const currentPeriodLabel = computed(() => formatPeriod(comparison.value.currentPeriod))
 const previousPeriodLabel = computed(() => formatPeriod(comparison.value.previousPeriod))
-const trendGranularityLabel = computed(() => ({ day: '按日', week: '按周', month: '按月' }[analysisSnapshot.value.granularity]))
+const trendGranularityLabel = computed(() => ({ hour: '按小时', day: '按日', week: '按周', month: '按月' }[analysisSnapshot.value.trendGranularity] || ''))
 const comparisonStatusClass = computed(() => `status-${comparison.value.status}`)
 const comparisonRateText = computed(() => (
   comparison.value.comparable && Number.isFinite(comparison.value.changeRate)
@@ -282,10 +280,24 @@ const rankBarStyle = (percent) => ({
   background: `linear-gradient(90deg, ${ENERGY_ANALYSIS_COLORS.rankAccent}, ${ENERGY_ANALYSIS_COLORS.rank})`
 })
 const kpiProgressFillStyle = (percent) => ({
-  width: `${percent}%`,
+  width: `${Math.min(100, Math.max(0, Number(percent) || 0))}%`,
   background: `linear-gradient(90deg, ${ENERGY_ANALYSIS_COLORS.progressAccent}, ${ENERGY_ANALYSIS_COLORS.progress})`
 })
 const kpiGoalValueStyle = { color: ENERGY_ANALYSIS_COLORS.progress }
+const summaryHint = computed(() => stateMessage(analysisSnapshot.value.states.summary, '当前所选范围'))
+const trendTimeLabel = computed(() => analysisSnapshot.value.trendSourceLabel || timeRangeTagLabel.value)
+const rankingTimeLabel = computed(() => analysisSnapshot.value.rankingSourceLabel || timeRangeTagLabel.value)
+const targetHint = computed(() => {
+  const target = analysisSnapshot.value.summary.targetValue
+  const yearSaved = analysisSnapshot.value.summary.yearSavedKWh
+  if (Number.isFinite(target) && Number.isFinite(yearSaved)) {
+    return `年度节约 ${formatMetric(yearSaved)} / 目标 ${formatMetric(target)} kWh`
+  }
+  if (Number.isFinite(target)) {
+    return stateMessage(analysisSnapshot.value.states.target, `年度目标 ${formatMetric(target)} kWh`)
+  }
+  return stateMessage(analysisSnapshot.value.states.target, '目标值暂无数据')
+})
 
 function applyCustomRange() {
   selectedPreset.value = 'custom'
@@ -311,13 +323,54 @@ function selectArea(node) {
   selectedArea.value = normalizeSelectedArea(node)
 }
 
-async function refreshRankingAreas() {
-  const loadToken = ++rankingLoadToken
-  rankingLoading.value = true
-  const areas = await loadEnergyRankingAreas(selectedAreaNode.value, areaMapConfig)
-  if (loadToken !== rankingLoadToken) return
-  rankingAreas.value = areas
-  rankingLoading.value = false
+async function initializeHierarchy() {
+  hierarchyLoading.value = true
+  hierarchyError.value = ''
+  try {
+    const hierarchy = await loadEnergyLocationHierarchy()
+    areaTree.value = hierarchy.tree
+    expandedTreeIds.value = new Set(collectExpandableIds(hierarchy.tree))
+    selectedArea.value = normalizeSelectedArea(hierarchy.root)
+  } catch (error) {
+    hierarchyError.value = error?.message || '物理层级加载失败'
+  } finally {
+    hierarchyLoading.value = false
+  }
+}
+
+async function refreshAnalysis() {
+  if (!selectedArea.value.locationId || dateValidationError.value) return
+  const requestId = ++analysisRequestId
+  analysisAbortController?.abort()
+  analysisAbortController = new AbortController()
+  analysisSnapshot.value = createEmptyEnergyAnalysisSnapshot({
+    startDate: dateRange.value.startDate,
+    endDate: dateRange.value.endDate
+  })
+
+  try {
+    const snapshot = await loadEnergyAnalysisSnapshot({
+      locationId: selectedArea.value.locationId,
+      locationLevel: selectedArea.value.level,
+      deviceType: selectedType.value,
+      childLocations: selectedArea.value.childLocations,
+      startDate: dateRange.value.startDate,
+      endDate: dateRange.value.endDate,
+      preset: selectedPreset.value
+    }, { signal: analysisAbortController.signal })
+    if (requestId === analysisRequestId) analysisSnapshot.value = snapshot
+  } catch (error) {
+    if (requestId !== analysisRequestId || error?.name === 'AbortError') return
+    const message = error?.message || '能耗分析数据加载失败'
+    const failed = createEmptyEnergyAnalysisSnapshot({
+      startDate: dateRange.value.startDate,
+      endDate: dateRange.value.endDate
+    })
+    Object.keys(failed.states).forEach((key) => {
+      failed.states[key] = { status: 'error', message }
+    })
+    analysisSnapshot.value = failed
+  }
 }
 
 function toggleTreeNode(nodeId) {
@@ -328,11 +381,20 @@ function toggleTreeNode(nodeId) {
 }
 
 function normalizeSelectedArea(node) {
+  const level = node?.level || ''
   return {
-    id: node?.id || 'unknown-area',
-    label: node?.label || '未知区域',
-    level: node?.mapId ? 'floor' : 'building',
-    mapId: node?.mapId || ''
+    id: node?.id || '',
+    label: node?.label || '请选择范围',
+    level,
+    levelLabel: ({ company: '公司', site: '站点', building: '建筑', storey: '楼层', area: '区域' })[level] || '物理位置',
+    locationId: node?.locationId || '',
+    childLocations: Array.isArray(node?.children)
+      ? node.children.map((child) => ({
+        id: child.id,
+        label: child.label,
+        locationId: child.locationId
+      }))
+      : []
   }
 }
 
@@ -342,24 +404,29 @@ function collectExpandableIds(nodes) {
     : [])
 }
 
-function findNodePath(nodes, predicate, parentPath = []) {
-  for (const node of nodes) {
-    const currentPath = [...parentPath, node]
-    if (predicate(node)) return currentPath
-    if (node.children?.length) {
-      const result = findNodePath(node.children, predicate, currentPath)
-      if (result.length) return result
-    }
-  }
-  return []
-}
-
 function formatPeriod(period) {
   return `${formatDate(period.startDate)} 至 ${formatDate(period.endDate)}`
 }
 
 function formatEnergy(value) {
-  return Number.isFinite(value) ? Math.round(value).toLocaleString('zh-CN') : '--'
+  return Number.isFinite(value)
+    ? new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 3 }).format(value)
+    : '--'
+}
+
+function formatMetric(value) {
+  return Number.isFinite(value)
+    ? new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 3 }).format(value)
+    : '--'
+}
+
+function formatPercent(value) {
+  return Number.isFinite(value) ? `${Number(value).toFixed(1)}%` : '--'
+}
+
+function stateMessage(state, fallback) {
+  if (state?.status === 'loading') return state.message || '数据加载中...'
+  return state?.message || fallback
 }
 
 function initTrendChart() {
@@ -501,16 +568,37 @@ function handleResize() {
   compareChartInstance?.resize()
 }
 
-watch(selectedArea, refreshRankingAreas, { immediate: true })
-watch(analysisSnapshot, () => nextTick(() => {
-  updateTrendChart()
-  updateCompareChart()
-}))
+function renderCharts() {
+  if (analysisSnapshot.value.trend.length && trendChart.value) {
+    if (!trendChartInstance) initTrendChart()
+    else updateTrendChart()
+  } else if (trendChartInstance) {
+    trendChartInstance.dispose()
+    trendChartInstance = null
+  }
+
+  if (comparisonHasData.value && compareChart.value) {
+    if (!compareChartInstance) initCompareChart()
+    else updateCompareChart()
+  } else if (compareChartInstance) {
+    compareChartInstance.dispose()
+    compareChartInstance = null
+  }
+}
+
+watch([
+  () => selectedArea.value.locationId,
+  selectedType,
+  selectedPreset,
+  () => formatDate(dateRange.value.startDate),
+  () => formatDate(dateRange.value.endDate)
+], refreshAnalysis)
+watch(analysisSnapshot, () => nextTick(renderCharts), { deep: true })
 
 onMounted(() => {
+  initializeHierarchy()
   nextTick(() => {
-    initTrendChart()
-    initCompareChart()
+    renderCharts()
     if (window.ResizeObserver) {
       chartResizeObserver = new ResizeObserver(() => requestAnimationFrame(handleResize))
       if (trendChart.value) chartResizeObserver.observe(trendChart.value)
@@ -521,6 +609,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  analysisAbortController?.abort()
   window.removeEventListener('resize', handleResize)
   chartResizeObserver?.disconnect()
   trendChartInstance?.dispose()
@@ -547,17 +636,18 @@ onUnmounted(() => {
 .custom-range input { width: 100%; min-width: 0; padding: 7px 5px; border: 1px solid var(--border-default); border-radius: 7px; background: var(--control-bg); color: var(--text-secondary); font-size: 11px; color-scheme: dark; }
 .range-separator { padding-bottom: 8px; color: var(--text-muted); font-size: 10px; }
 .filter-error { margin-top: 7px; color: var(--danger); font-size: 11px; }
+.filter-state { margin: 4px 0 8px 28px; color: var(--text-tertiary); font-size: 11px; }
 .device-types { display: flex; flex-wrap: wrap; gap: 8px; }
 .type-btn { min-width: 68px; border-radius: 999px; }
 .area-hint { margin: -3px 0 7px 28px; color: var(--text-muted); font-size: 10px; }
 .area-tree { min-height: 0; flex: 1; overflow: auto; padding-right: 3px; }
 .right-section { min-width: 0; min-height: 0; height: 100%; display: flex; flex-direction: column; gap: 16px; }
 .kpi-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; flex: 0 0 auto; }
-.kpi-card { background: linear-gradient(180deg, rgba(85, 216, 255, 0.07), var(--card-bg-strong)); border: 1px solid var(--border-default); border-radius: 12px; padding: 16px; box-shadow: inset 0 1px 0 var(--inner-highlight), var(--shadow-panel); }
+.kpi-card { position: relative; overflow: hidden; background: linear-gradient(180deg, rgba(85, 216, 255, 0.07), var(--card-bg-strong)); border: 1px solid var(--border-default); border-radius: 12px; padding: 16px; box-shadow: inset 0 1px 0 var(--inner-highlight), var(--shadow-panel); }
+.kpi-bg-icon { position: absolute; z-index: 0; top: 16px; right: 24px; width: 62px; height: 62px; background-color: #094463; opacity: 0.7; pointer-events: none; user-select: none; -webkit-mask: var(--kpi-icon-mask) center / contain no-repeat; mask: var(--kpi-icon-mask) center / contain no-repeat; }
+.kpi-card > :not(.kpi-bg-icon) { position: relative; z-index: 1; }
 .kpi-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .kpi-label { color: var(--text-secondary); font-size: 13px; }
-.kpi-icon { min-width: 28px; height: 20px; padding: 0 7px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(85, 216, 255, 0.2); border-radius: 999px; background: var(--info-soft); color: var(--accent-cyan); font-size: 10px; }
-.kpi-icon.green { border-color: var(--success-border); background: var(--success-soft); color: var(--success); }
 .kpi-value { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; color: var(--text-primary); font-family: var(--font-num); font-size: 28px; font-weight: 700; }
 .kpi-trend { font-size: 12px; font-weight: 400; }
 .kpi-trend.up { color: var(--danger); }

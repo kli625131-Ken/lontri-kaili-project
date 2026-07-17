@@ -10,41 +10,17 @@
           </div>
           <div class="project-hero">
             <div class="project-copy">
-              <div class="project-name">开利项目</div>
-              <div class="project-desc">高性能照明联网及能耗改造方案</div>
+              <div class="project-name">{{ dashboardRootLabel || 'Lontri' }}</div>
+              <div class="project-desc">最高权限层级 · 系统仪表盘固定统计范围</div>
             </div>
           </div>
 
           <div class="project-stats">
-            <div v-for="item in projectStats" :key="item.label" class="project-stat">
+            <div v-for="item in projectStats" :key="item.label" class="project-stat" :title="item.title || ''">
               <span class="panel-icon" :class="item.tone" v-html="iconMap[item.icon]"></span>
               <div>
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="activePicker" class="nav-popup-mask" @click.self="closePicker">
-            <div class="nav-popup-panel">
-              <div class="nav-popup-header">
-                <span class="nav-popup-title">选择{{ pickerTitle }}</span>
-                <button class="nav-popup-close" @click="closePicker">×</button>
-              </div>
-              <div class="nav-popup-subtitle">当前：{{ pickerCurrentLabel }}</div>
-              <div v-if="activePicker === 'area' && areaFloorOptions.length" class="nav-popup-floors">
-                <button class="nav-floor-chip" :class="{ active: popupAreaFloor === '' }" @click="popupAreaFloor = ''">全部楼层</button>
-                <button v-for="item in areaFloorOptions" :key="item.value" class="nav-floor-chip" :class="{ active: popupAreaFloor === item.value }" @click="popupAreaFloor = item.value">{{ item.label }}</button>
-              </div>
-              <div class="nav-popup-options">
-                <button
-                  v-for="item in pickerOptions"
-                  :key="item.value"
-                  :class="['nav-popup-option', { active: pickerCurrentValue === item.value }]"
-                  @click="choosePickerOption(item.value)"
-                >
-                  {{ item.label }}
-                </button>
               </div>
             </div>
           </div>
@@ -82,6 +58,7 @@
         <DataCard title="实时照明能耗及节约值" class="energy-chart-card main-energy-card">
           <template #header-extra>
             <div class="filter-buttons">
+              <span class="dashboard-scope-chip">范围：{{ dashboardRootLabel || '--' }}</span>
               <button v-for="item in filterOptions" :key="item.value" :class="['filter-btn', { active: selectedFilter === item.value }]" @click="changeFilter(item.value)">{{ item.label }}</button>
             </div>
           </template>
@@ -102,38 +79,34 @@
             <section class="inventory-section" aria-label="设备清单概览">
               <div class="inventory-ring" :style="deviceTypeRingStyle">
                 <div class="inventory-ring-core">
-                  <strong>{{ dashboardDeviceStatus.inventory.total || '--' }}</strong>
+                  <strong>{{ formatCount(dashboardInventory.total) }}</strong>
                   <span>总设备</span>
                 </div>
               </div>
               <div class="inventory-breakdown">
                 <div class="inventory-row cu">
                   <i></i>
-                  <span>CU 设备</span>
-                  <strong>{{ dashboardDeviceStatus.inventory.cu }}</strong>
+                  <span>照明设备</span>
+                  <strong>{{ formatCount(dashboardInventory.lights) }}</strong>
                 </div>
                 <div class="inventory-row gw">
                   <i></i>
-                  <span>GW 网关</span>
-                  <strong>{{ dashboardDeviceStatus.inventory.gw }}</strong>
+                  <span>CU 设备</span>
+                  <strong>{{ formatCount(dashboardInventory.cus) }}</strong>
                 </div>
                 <div class="inventory-row region">
                   <i></i>
-                  <span>已配置区域</span>
-                  <strong>{{ dashboardDeviceStatus.inventory.regions }}</strong>
+                  <span>物理楼层</span>
+                  <strong>{{ formatCount(dashboardInventory.storeys) }}</strong>
                 </div>
               </div>
             </section>
-
-            <div v-if="dashboardDeviceStatus.errors.inventory" class="device-source-warning">
-              {{ dashboardDeviceStatus.errors.inventory }}
-            </div>
 
             <section class="connectivity-section" aria-label="设备连接状态">
               <div class="device-section-heading">
                 <span>连接状态</span>
                 <span :class="['connectivity-badge', { available: dashboardDeviceStatus.connectivity.available }]">
-                  {{ dashboardDeviceStatus.connectivity.available ? '实时状态正常' : '实时状态待接入' }}
+                  {{ connectivityBadgeText }}
                 </span>
               </div>
               <div class="connectivity-grid">
@@ -143,6 +116,10 @@
                 </div>
               </div>
             </section>
+
+            <div v-if="dashboardDeviceStatus.errors.connectivity || dashboardDeviceStatus.connectivity.scopeNote" class="device-source-warning">
+              {{ dashboardDeviceStatus.errors.connectivity || dashboardDeviceStatus.connectivity.scopeNote }}
+            </div>
 
             <section class="alarm-summary-section" aria-label="设备告警状态">
               <div class="device-section-heading">
@@ -158,6 +135,9 @@
 
             <div v-if="dashboardDeviceStatus.errors.alarms" class="device-source-warning">
               {{ dashboardDeviceStatus.errors.alarms }}
+            </div>
+            <div v-else-if="dashboardDeviceStatus.alarms.scopeNote" class="device-source-warning">
+              {{ dashboardDeviceStatus.alarms.scopeNote }}
             </div>
           </template>
         </DataCard>
@@ -178,8 +158,10 @@ import {
 } from '../services/dashboardDeviceStatusService.js'
 import {
   createEmptyDashboardEnergy,
+  hasDashboardEnergyData,
   loadDashboardEnergy
 } from '../services/dashboardEnergyApi.js'
+import { loadEnergyLocationHierarchy } from '../services/locationHierarchyApi.js'
 
 const KPI_COLORS = {
   fee: 'var(--accent-gold)',
@@ -202,6 +184,8 @@ const deviceStatusLoading = ref(true)
 const dashboardEnergy = ref(createEmptyDashboardEnergy())
 const energyLoading = ref(true)
 const energyError = ref('')
+const dashboardRootLocationId = ref('')
+const dashboardRootLabel = ref('')
 const iconMap = {
   cost: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="m9 7 7 9 7-9M16 16v10M10 18.5h12M10 22.5h12" fill="none" stroke="currentColor" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   saving: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M25.5 6.5C14.2 7.1 7.5 12.2 8 21.2c7.6.2 13.7-4.6 17.5-14.7Z" fill="currentColor" opacity=".95"/><path d="M8.5 25c3.8-7 8.2-9.7 13.6-12.1" fill="none" stroke="#063e38" stroke-width="2.1" stroke-linecap="round"/><path d="M7 26h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
@@ -395,8 +379,9 @@ const dashboardKpis = computed(() => {
     }
   ]
 })
+// The former sceneMap generated demo values. Dashboard display now only reads
+// the real API adapters below; the map/floor UI cannot change this root scope.
 const currentScene = computed(() => ({
-  ...sceneMap[currentSceneKey.value],
   kpis: dashboardKpis.value,
   energy: dashboardEnergy.value.energy,
   trend: dashboardEnergy.value.trend
@@ -404,16 +389,35 @@ const currentScene = computed(() => ({
 const currentPathText = computed(() => [currentCampus.value?.label, currentBuilding.value?.label, currentArea.value?.label].filter(Boolean).join(' / '))
 const currentPathSegments = computed(() => [currentCampus.value?.label, currentBuilding.value?.label, currentArea.value?.label].filter(Boolean))
 const formatInteger = (value) => new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }).format(value)
+const formatCount = (value) => Number.isFinite(value) ? formatInteger(value) : '--'
+const dashboardInventory = computed(() => {
+  const overview = dashboardEnergy.value.overview
+  const hasDeviceCount = overview.lights !== null || overview.cus !== null
+  return {
+    total: hasDeviceCount ? (overview.lights || 0) + (overview.cus || 0) : null,
+    lights: overview.lights,
+    cus: overview.cus,
+    storeys: overview.storeys
+  }
+})
 const projectStats = computed(() => [
-  { label: '楼层数', value: dashboardDeviceStatus.value.inventory.floors ? `${dashboardDeviceStatus.value.inventory.floors}层` : '--', icon: 'floors', tone: 'blue' },
-  { label: '总面积', value: dashboardDeviceStatus.value.inventory.totalArea ? `${formatInteger(dashboardDeviceStatus.value.inventory.totalArea)}㎡` : '--', icon: 'area', tone: 'cyan' },
+  { label: '楼层数', value: dashboardInventory.value.storeys === null ? '--' : `${formatCount(dashboardInventory.value.storeys)}层`, icon: 'floors', tone: 'blue' },
+  {
+    label: '总面积',
+    value: dashboardDeviceStatus.value.area.totalSquareMeters === null
+      ? '--'
+      : `${formatInteger(Math.round(dashboardDeviceStatus.value.area.totalSquareMeters))}㎡`,
+    title: dashboardDeviceStatus.value.errors.area || dashboardDeviceStatus.value.area.scopeNote,
+    icon: 'area',
+    tone: 'cyan'
+  },
   { label: '今日能耗', value: dashboardEnergy.value.metrics.todayKWh === null ? '--' : `${formatMetric(dashboardEnergy.value.metrics.todayKWh)}kWh`, icon: 'energy', tone: 'green' },
   { label: '年度总能耗', value: formatEnergyTotal(dashboardEnergy.value.metrics.yearKWh), icon: 'totalEnergy', tone: 'blue' }
 ])
 const deviceTypeRingStyle = computed(() => {
-  const { total, cu, gw } = dashboardDeviceStatus.value.inventory
-  const cuPercent = total > 0 ? (cu / total) * 100 : 0
-  const gwEndPercent = total > 0 ? Math.min(cuPercent + (gw / total) * 100, 100) : 0
+  const { total, lights, cus } = dashboardInventory.value
+  const cuPercent = total > 0 ? ((lights || 0) / total) * 100 : 0
+  const gwEndPercent = total > 0 ? Math.min(cuPercent + ((cus || 0) / total) * 100, 100) : 0
 
   return {
     '--cu-percent': `${cuPercent}%`,
@@ -431,14 +435,19 @@ const connectivityMetrics = computed(() => {
     { label: '在线率', value: connectivity.available ? `${connectivity.onlineRate}%` : '暂无数据', tone: 'rate' }
   ]
 })
+const connectivityBadgeText = computed(() => {
+  const connectivity = dashboardDeviceStatus.value.connectivity
+  if (!connectivity.available) return '实时状态不可用'
+  return connectivity.scopeVerified ? '实时状态正常' : '接口范围待确认'
+})
 const alarmMetrics = computed(() => {
   const unavailable = Boolean(dashboardDeviceStatus.value.errors.alarms)
   const alarms = dashboardDeviceStatus.value.alarms
   return [
-    { label: '告警总数', value: unavailable ? '--' : alarms.total, tone: 'total' },
-    { label: '待处理', value: unavailable ? '--' : alarms.pending, tone: 'pending' },
-    { label: '已处理', value: unavailable ? '--' : alarms.processed, tone: 'processed' },
-    { label: '已关闭', value: unavailable ? '--' : alarms.closed, tone: 'closed' }
+    { label: '告警总数', value: unavailable || alarms.total === null ? '--' : alarms.total, tone: 'total' },
+    { label: '待处理', value: unavailable || alarms.pending === null ? '--' : alarms.pending, tone: 'pending' },
+    { label: '已处理', value: unavailable || alarms.processed === null ? '--' : alarms.processed, tone: 'processed' },
+    { label: '已关闭', value: unavailable || alarms.closed === null ? '--' : alarms.closed, tone: 'closed' }
   ]
 })
 const activePicker = ref(null)
@@ -586,16 +595,22 @@ const initTrendChart = () => {
 }
 const changeFilter = (value) => { selectedFilter.value = value }
 const handleResize = () => { energyChartInstance?.resize(); trendChartInstance?.resize() }
-watch([selectedFilter, currentSceneKey, dashboardEnergy], () => { updateEnergyChart(); updateTrendChart() })
+watch([selectedFilter, dashboardEnergy], () => { updateEnergyChart(); updateTrendChart() })
 
 const refreshDashboardEnergy = async () => {
   if (energyRequestActive) return
+  if (!dashboardRootLocationId.value) {
+    energyLoading.value = false
+    if (!energyError.value) energyError.value = '未取得 Lontri 物理位置 locationId'
+    return
+  }
   energyRequestActive = true
   energyLoading.value = true
   energyError.value = ''
 
   try {
-    const nextEnergy = await loadDashboardEnergy()
+    const nextEnergy = await loadDashboardEnergy({ locationId: dashboardRootLocationId.value })
+    if (!hasDashboardEnergyData(nextEnergy)) throw new Error(`${dashboardRootLabel.value || '当前范围'}暂无有效能耗数据`)
     if (!dashboardDisposed) dashboardEnergy.value = nextEnergy
   } catch (error) {
     if (!dashboardDisposed) {
@@ -614,7 +629,7 @@ const refreshDashboardDeviceStatus = async () => {
   deviceStatusLoading.value = true
 
   try {
-    const nextStatus = await loadDashboardDeviceStatus({ mapId: 'floor1' })
+    const nextStatus = await loadDashboardDeviceStatus()
     if (!dashboardDisposed) dashboardDeviceStatus.value = nextStatus
   } finally {
     deviceStatusRequestActive = false
@@ -622,10 +637,28 @@ const refreshDashboardDeviceStatus = async () => {
   }
 }
 
+const initializeDashboard = async () => {
+  try {
+    const hierarchy = await loadEnergyLocationHierarchy()
+    if (dashboardDisposed) return
+    dashboardRootLocationId.value = hierarchy.root.locationId
+    dashboardRootLabel.value = hierarchy.root.label
+  } catch (error) {
+    if (!dashboardDisposed) {
+      energyLoading.value = false
+      energyError.value = error?.message || 'Lontri 统计范围加载失败'
+    }
+  }
+
+  await Promise.all([
+    refreshDashboardEnergy(),
+    refreshDashboardDeviceStatus()
+  ])
+}
+
 onMounted(() => {
   dashboardDisposed = false
-  refreshDashboardEnergy()
-  refreshDashboardDeviceStatus()
+  initializeDashboard()
   energyRefreshTimer = window.setInterval(refreshDashboardEnergy, 5 * 60_000)
   deviceStatusRefreshTimer = window.setInterval(refreshDashboardDeviceStatus, 60_000)
   setTimeout(() => { initEnergyChart(); initTrendChart() }, 100)
@@ -1185,6 +1218,7 @@ onUnmounted(() => {
 .kpi-foot { justify-content: center; }
 .kpi-foot strong { text-align: center; }
 .main-energy-card .filter-buttons { margin: 0 0 0 auto; gap: 6px; }
+.dashboard-scope-chip { display: inline-flex; align-items: center; padding: 4px 9px; border: 1px solid rgba(85, 216, 255, 0.2); border-radius: 999px; color: rgba(196, 226, 246, 0.82); background: rgba(85, 216, 255, 0.07); font-size: 10px; white-space: nowrap; }
 .main-energy-card .filter-btn { min-height: 26px; padding: 4px 11px; font-size: 11px; }
 
 .status-overview { grid-template-columns: 204px minmax(0, 1fr); min-height: 220px; }

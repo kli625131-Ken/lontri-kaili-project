@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="默认设备图标">
+  <rect x="10" y="10" width="44" height="44" rx="10" fill="#1d4e68" stroke="#6ed8ff" stroke-width="4"/>
+  <circle cx="32" cy="32" r="8" fill="#dff8ff"/>
+  <path d="M20 32h5m14 0h5M32 20v5m0 14v5" stroke="#dff8ff" stroke-width="4" stroke-linecap="round"/>
+</svg>

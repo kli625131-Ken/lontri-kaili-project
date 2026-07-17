@@ -96,21 +96,79 @@
         <template #header-extra>
           <div class="map-toolbar">
             <MapModeSwitch :model-value="mapMode" @change="handleMapModeChange" />
-            <div class="layer-switch">
+            <div class="device-filter" @click.stop>
               <button
-                v-for="option in deviceLayerOptions"
-                :key="option.value"
-                class="toolbar-btn ghost layer-btn"
-                :class="{ active: deviceLayerFilter === option.value }"
-                @click="deviceLayerFilter = option.value"
+                type="button"
+                class="toolbar-btn ghost device-filter-trigger"
+                :class="{ active: isDeviceFilterOpen }"
+                :aria-expanded="isDeviceFilterOpen"
+                aria-haspopup="listbox"
+                @click="isDeviceFilterOpen = !isDeviceFilterOpen"
               >
-                {{ option.label }}
+                <span>{{ deviceFilterLabel }}</span>
+                <span class="device-filter-arrow">⌄</span>
+              </button>
+              <div v-if="isDeviceFilterOpen" class="device-filter-menu" role="listbox" aria-multiselectable="true">
+                <label class="device-filter-option all">
+                  <input type="checkbox" :checked="isAllDeviceFiltersSelected" @change="toggleAllDeviceFilters($event.target.checked)" />
+                  <span>全选</span>
+                </label>
+                <label v-for="option in deviceFilterOptions" :key="option.value" class="device-filter-option">
+                  <input type="checkbox" :checked="isDeviceFilterSelected(option.value)" @change="toggleDeviceFilter(option.value, $event.target.checked)" />
+                  <span>{{ option.label }}</span>
+                </label>
+              </div>
+            </div>
+            <div v-if="isConfigMode" class="map-import-actions">
+              <input
+                ref="svgUploadInputRef"
+                class="map-file-input"
+                type="file"
+                accept=".svg,image/svg+xml"
+                @change="handleSvgFileChange"
+              />
+              <input
+                ref="excelUploadInputRef"
+                class="map-file-input"
+                type="file"
+                accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                @change="handleExcelFileChange"
+              />
+              <button
+                class="toolbar-btn ghost import-btn"
+                type="button"
+                :disabled="!hasBackendFloor || importState.busy"
+                @click="openSvgFilePicker"
+              >
+                {{ importState.svgFileName ? '更换SVG底图' : '导入SVG底图' }}
+              </button>
+              <button
+                class="toolbar-btn ghost import-btn"
+                type="button"
+                :disabled="!hasBackendFloor || importState.busy"
+                @click="openExcelFilePicker"
+              >
+                上传设备属性表
+              </button>
+              <button
+                class="toolbar-btn ghost import-btn"
+                type="button"
+                :disabled="!hasActiveBackendMap() || !pendingDevicePositionCount || devicePositionSyncBusy"
+                @click="persistPendingDevicePositions"
+              >
+                {{ devicePositionSyncBusy ? '正在保存点位' : `保存设备点位${pendingDevicePositionCount ? ` (${pendingDevicePositionCount})` : ''}` }}
               </button>
             </div>
           </div>
         </template>
 
-        <div class="map-shell">
+        <div
+          class="map-shell"
+          :class="{
+            'is-default-mode': !isConfigMode,
+            'is-config-mode': isConfigMode
+          }"
+        >
           <div class="map-backdrop"></div>
           <transition name="region-hint-fade">
             <div
@@ -938,8 +996,8 @@ import MapEditToolbar from '../components/deviceMap/MapEditToolbar.vue'
 import MapModeSwitch from '../components/deviceMap/MapModeSwitch.vue'
 import MapRegionDialog from '../components/deviceMap/MapRegionDialog.vue'
 import { DEVICE_MAP_BRIGHTNESS_OPTIONS } from '../components/deviceMap/deviceMapOptions'
-import cuIconUrl from '../assets/images/devices/CU.png'
-import gwIconUrl from '../assets/images/devices/GW.png'
+import { getDeviceIconDisplayConfig } from '../config/deviceIconConfig'
+import { resolveDeviceIcon } from '../config/deviceIconMap'
 import {
   DEFAULT_DEVICE_VISUALIZATION_MAP_ID,
   DEVICE_VISUALIZATION_MAPS,
@@ -956,11 +1014,25 @@ import {
 import {
   createDraftFromOverlay,
   createInitialDraftState,
+  clearDraft as clearLocalMapDraft,
   loadMapState,
   removeDeviceFromDraft,
   saveDraft,
   validateDraftState
 } from '../services/deviceMapLocalService'
+import {
+  confirmMapImport,
+  createMapDevice,
+  deleteMapDevice,
+  getFloorMapPackage,
+  previewDeviceAttributes,
+  recalculateImportTransform,
+  resolveFloorHierarchy,
+  resolveMapSvgUrl,
+  updateDevicePosition as saveBackendDevicePosition,
+  updateDevicePositions as saveBackendDevicePositions,
+  uploadFloorSvg
+} from '../services/deviceMapApi'
 import { DEVICE_MAP_PROJECT_ID } from '../mock/deviceMapMockData'
 import {
   addCustomScene,
@@ -989,6 +1061,10 @@ const miniMapContentRef = ref(null)
 const mapMarkup = ref('')
 const mapError = ref('')
 const mapMeta = ref(null)
+const resolvedFloorContext = ref(null)
+const mapWriteBlocked = ref(false)
+const svgUploadInputRef = ref(null)
+const excelUploadInputRef = ref(null)
 
 const originalViewBox = ref({ x: 0, y: 0, width: 800, height: 600 })
 const currentViewBox = ref({ x: 0, y: 0, width: 800, height: 600 })
@@ -1000,7 +1076,8 @@ const activeDrawer = ref(null)
 const drawerMessage = ref('')
 const recognitionDebug = ref(null)
 const debugEnabled = ref(false)
-const deviceLayerFilter = ref('all')
+const selectedDeviceFilters = ref(['all'])
+const isDeviceFilterOpen = ref(false)
 const focusedRegionId = ref('')
 const hoveredRegionId = ref('')
 const selectedMapId = ref(DEFAULT_DEVICE_VISUALIZATION_MAP_ID)
@@ -1009,6 +1086,9 @@ const hoveredDeviceId = ref('')
 const mapViewportSize = ref({ width: 1200, height: 700 })
 const expandedTreeIds = ref(new Set(getInitialExpandedTreeIds(DEVICE_VISUALIZATION_MAP_TREE)))
 const mapMode = ref('default')
+const importState = ref(createInitialImportState())
+const pendingDevicePositions = ref(new Map())
+const devicePositionSyncBusy = ref(false)
 const activeEditTool = ref('select')
 const configToolbarExpanded = ref(false)
 const configToolbarGroup = ref('region')
@@ -1071,12 +1151,6 @@ const REGION_GLOW_DISABLE_ZOOM = 2.6
 const MAX_ZOOM = 15
 const EDIT_HISTORY_LIMIT = 30
 const REGION_COLORS = ['#9b6df0', '#5b8fe8', '#72b982', '#f0ad48', '#58bfd1', '#e86b6b']
-const DEFAULT_DEVICE_ICON_BOUNDS = {
-  cu: { left: 0.08, top: 0.08, right: 0.92, bottom: 0.92 },
-  gw: { left: 0.06, top: 0.06, right: 0.94, bottom: 0.94 }
-}
-const deviceIconAlphaBounds = ref({ ...DEFAULT_DEVICE_ICON_BOUNDS })
-
 let drawerMessageTimer = null
 let viewBoxAnimationFrame = null
 let viewBoxAnimationToken = 0
@@ -1100,6 +1174,13 @@ const zoomLevel = computed(() => {
 
 const zoomPercent = computed(() => Math.round(((zoomLevel.value - 1) / (MAX_ZOOM - 1)) * 100))
 const isConfigMode = computed(() => mapMode.value === 'config')
+const selectedMapConfig = computed(() => DEVICE_VISUALIZATION_MAPS[selectedMapId.value] || null)
+const resolvedFloorId = computed(() => resolvedFloorContext.value?.floorId || '')
+const hasBackendFloor = computed(() => Boolean(resolvedFloorId.value))
+const availableImportSvgUrl = computed(() => (
+  importState.value.svgImportId || importState.value.svgUrl || mapMeta.value?.rawSvgUrl || ''
+))
+const pendingDevicePositionCount = computed(() => pendingDevicePositions.value.size)
 const isDrawingTool = computed(() => ['draw-rect', 'draw-circle', 'draw-polygon'].includes(activeEditTool.value))
 const isRegionOperationTool = computed(() => isDrawingTool.value || activeEditTool.value === 'edit-region')
 const operationStatusVisible = computed(() => isConfigMode.value && isRegionOperationTool.value)
@@ -1240,11 +1321,17 @@ const drawPreviewPolygon = computed(() => {
   return pointsToString(points)
 })
 
-const deviceLayerOptions = [
-  { label: '全选', value: 'all' },
-  { label: 'CU', value: 'cu' },
-  { label: '网关', value: 'gw' }
-]
+const DEVICE_FILTER_LABELS = {
+  gw: 'GW',
+  cu: 'CU',
+  'scu-f': 'SCU-F',
+  'scu-y': 'SCU-Y',
+  scu: 'SCU',
+  ocsr: 'OCSR',
+  mcbox: 'MCBOX',
+  default: '其他设备'
+}
+const DEVICE_FILTER_KEYS = new Set(Object.keys(DEVICE_FILTER_LABELS))
 const brightnessOptions = DEVICE_MAP_BRIGHTNESS_OPTIONS
 const editToolValues = new Set([
   'select',
@@ -1253,12 +1340,36 @@ const editToolValues = new Set([
   'draw-polygon',
   'edit-region',
   'delete-region',
+  'add-device',
   'move-device',
   'delete-device'
 ])
 
-const visibleCuDevices = computed(() => (deviceLayerFilter.value === 'gw' ? [] : cuDevices.value))
-const visibleGwDevices = computed(() => (deviceLayerFilter.value === 'cu' ? [] : gwDevices.value))
+const allMapDevices = computed(() => [...gwDevices.value, ...cuDevices.value])
+const deviceFilterOptions = computed(() => {
+  const keys = [...new Set(allMapDevices.value.map(getDeviceFilterKey))]
+  return keys.map((value) => ({ value, label: DEVICE_FILTER_LABELS[value] || value.toUpperCase() }))
+})
+const isAllDeviceFiltersSelected = computed(() => (
+  selectedDeviceFilters.value.includes('all') || (
+    deviceFilterOptions.value.length > 0 &&
+    deviceFilterOptions.value.every((option) => selectedDeviceFilters.value.includes(option.value))
+  )
+))
+const activeDeviceFilterKeys = computed(() => (
+  isAllDeviceFiltersSelected.value
+    ? new Set(deviceFilterOptions.value.map((option) => option.value))
+    : new Set(selectedDeviceFilters.value)
+))
+const deviceFilterLabel = computed(() => {
+  if (isAllDeviceFiltersSelected.value) return '全选'
+  const labels = deviceFilterOptions.value
+    .filter((option) => activeDeviceFilterKeys.value.has(option.value))
+    .map((option) => option.label)
+  return labels.length ? labels.join('、') : '未选择设备'
+})
+const visibleCuDevices = computed(() => cuDevices.value.filter(isDeviceFilterVisible))
+const visibleGwDevices = computed(() => gwDevices.value.filter(isDeviceFilterVisible))
 const miniMapDevices = computed(() => [...visibleCuDevices.value, ...visibleGwDevices.value])
 const focusedCodeDevices = computed(() => {
   if (!displayFocusedRegion.value) return []
@@ -1271,6 +1382,29 @@ const debugVisible = computed(() => isDebugAvailable && debugEnabled.value && !!
 const debugRegionCandidates = computed(() => recognitionDebug.value?.regionCandidates ?? [])
 const debugUnmappedDeviceCandidates = computed(() => recognitionDebug.value?.unmappedDeviceCandidates ?? [])
 const debugStats = computed(() => recognitionDebug.value?.stats ?? null)
+
+function getDeviceFilterKey(device) {
+  return DEVICE_FILTER_KEYS.has(device.icon) ? device.icon : resolveDeviceIcon(device).key
+}
+
+function isDeviceFilterVisible(device) {
+  return activeDeviceFilterKeys.value.has(getDeviceFilterKey(device))
+}
+
+function isDeviceFilterSelected(value) {
+  return isAllDeviceFiltersSelected.value || selectedDeviceFilters.value.includes(value)
+}
+
+function toggleAllDeviceFilters(checked) {
+  selectedDeviceFilters.value = checked ? ['all'] : []
+}
+
+function toggleDeviceFilter(value, checked) {
+  const current = selectedDeviceFilters.value.includes('all') ? [] : selectedDeviceFilters.value
+  selectedDeviceFilters.value = checked
+    ? [...new Set([...current, value])]
+    : current.filter((item) => item !== value)
+}
 
 watch(
   [mapMarkup, mapContentRef, miniMapContentRef],
@@ -1289,7 +1423,6 @@ onMounted(async () => {
     mapResizeObserver = new ResizeObserver(updateMapViewportSize)
     mapResizeObserver.observe(mapSvgRef.value)
   }
-  void loadDeviceIconBounds()
   await loadFloorMap()
 })
 
@@ -1316,6 +1449,7 @@ async function selectMap(mapId) {
 
   resetMapInteractionState()
   selectedMapId.value = mapId
+  importState.value = createInitialImportState()
   await loadFloorMap(config)
 }
 
@@ -1325,6 +1459,144 @@ function getMapNodeClass(mapId) {
     active: selectedMapId.value === mapId,
     disabled: config?.available === false
   }
+}
+
+function createInitialImportState() {
+  return {
+    busy: false,
+    svgFileName: '',
+    svgUrl: '',
+    svgImportId: '',
+    excelFileName: '',
+    excelImportId: '',
+    summary: null,
+    errors: [],
+    warnings: []
+  }
+}
+
+function openSvgFilePicker() {
+  if (!hasBackendFloor.value || importState.value.busy) return
+  svgUploadInputRef.value?.click()
+}
+
+function openExcelFilePicker() {
+  if (!hasBackendFloor.value || importState.value.busy) return
+  if (!availableImportSvgUrl.value) {
+    commitDrawerMessage('请先导入 SVG 底图')
+    return
+  }
+  excelUploadInputRef.value?.click()
+}
+
+async function handleSvgFileChange(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+
+  try {
+    await validateSvgFile(file)
+    importState.value = { ...createInitialImportState(), busy: true }
+    const result = await uploadFloorSvg(resolvedFloorId.value, file)
+    const svgUrl = result?.Package?.Map?.SvgUrl || result?.Map?.SvgUrl || ''
+
+    importState.value = {
+      ...createInitialImportState(),
+      svgFileName: file.name,
+      svgUrl,
+      svgImportId: result.ImportId || result.importId || ''
+    }
+    if (!importState.value.svgImportId && !svgUrl) {
+      throw new Error('SVG 上传成功，但接口未返回 importId 或地图信息')
+    }
+    commitDrawerMessage('SVG 已上传，请继续上传设备属性表')
+  } catch (error) {
+    importState.value = createInitialImportState()
+    commitDrawerMessage(error.message || 'SVG 导入失败')
+  }
+}
+
+async function handleExcelFileChange(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  if (!/\.xlsx?$/i.test(file.name)) {
+    commitDrawerMessage('设备属性表仅支持 .xls 或 .xlsx 文件')
+    return
+  }
+  if (!availableImportSvgUrl.value) {
+    commitDrawerMessage('请先导入 SVG 底图')
+    return
+  }
+
+  importState.value = { ...importState.value, busy: true, excelFileName: file.name, errors: [], warnings: [] }
+  try {
+    const result = await previewDeviceAttributes(resolvedFloorId.value, file)
+    const errors = normalizeImportMessages(result?.Errors || result?.errors)
+    const warnings = normalizeImportMessages(result?.Warnings || result?.warnings || result?.Package?.Warnings)
+    const nextState = {
+      ...importState.value,
+      busy: false,
+      excelImportId: result?.ImportId || result?.importId || '',
+      summary: result?.Summary || result?.summary || null,
+      errors,
+      warnings
+    }
+    importState.value = nextState
+
+    if (!nextState.excelImportId) throw new Error('设备属性表解析成功，但接口未返回 importId')
+    if (errors.length) {
+      commitDrawerMessage(`属性表存在 ${errors.length} 项错误，请修正后重试`)
+      return
+    }
+
+    const summary = nextState.summary || {}
+    const svgName = nextState.svgFileName || mapMeta.value?.svgFileName || '当前已导入 SVG'
+    const description = `楼层：${selectedMapConfig.value.name}\nSVG：${svgName}\n属性表：${file.name}\n区域：${summary.RegionCount ?? 0}，设备：${summary.DeviceCount ?? 0}${warnings.length ? `\n警告：${warnings.join('；')}` : ''}\n\n确认导入并替换当前楼层数字地图？`
+    if (window.confirm(description)) await confirmCurrentMapImport()
+  } catch (error) {
+    importState.value = { ...importState.value, busy: false }
+    commitDrawerMessage(error.message || '设备属性表解析失败')
+  }
+}
+
+async function confirmCurrentMapImport() {
+  const state = importState.value
+  if (!state.excelImportId || state.errors.length || state.busy) return
+
+  importState.value = { ...state, busy: true }
+  try {
+    await recalculateImportTransform(state.excelImportId, {
+      recalculateRelations: true,
+      updatedBy: getMapOperator()
+    })
+    const result = await confirmMapImport(state.excelImportId, selectedMapConfig.value.name)
+    const warnings = normalizeImportMessages(result?.Warnings || result?.warnings)
+    clearLocalMapDraft(DEVICE_MAP_PROJECT_ID, selectedMapId.value)
+    importState.value = { ...createInitialImportState(), warnings }
+    await loadFloorMap(selectedMapConfig.value)
+    commitDrawerMessage(warnings.length ? `数字地图已更新：${warnings.join('；')}` : '数字地图已更新')
+  } catch (error) {
+    importState.value = { ...state, busy: false }
+    commitDrawerMessage(error.message || '确认导入失败，当前地图未切换')
+  }
+}
+
+async function validateSvgFile(file) {
+  if (!/\.svg$/i.test(file.name)) throw new Error('仅支持 SVG 底图文件')
+  const text = await file.text()
+  const doc = new DOMParser().parseFromString(text, 'image/svg+xml')
+  if (doc.querySelector('parsererror') || doc.documentElement?.nodeName.toLowerCase() !== 'svg') {
+    throw new Error('SVG 文件格式无效')
+  }
+  if (!doc.documentElement.getAttribute('viewBox')) {
+    throw new Error('SVG 缺少 viewBox 属性，无法校准设备坐标')
+  }
+}
+
+function normalizeImportMessages(messages) {
+  if (!Array.isArray(messages)) return []
+  return messages.map((item) => (typeof item === 'string' ? item : item?.Message || item?.message || JSON.stringify(item)))
 }
 
 function isTreeExpanded(nodeId) {
@@ -1415,7 +1687,7 @@ function syncConfigToolbarGroup(tool) {
     configToolbarGroup.value = 'region'
     return
   }
-  if (['move-device', 'delete-device'].includes(tool)) {
+  if (['add-device', 'move-device', 'delete-device'].includes(tool)) {
     configToolbarGroup.value = 'device'
     return
   }
@@ -1442,6 +1714,7 @@ function getEditToolLabel(tool) {
     'draw-polygon': '新建多边形区域',
     'edit-region': '编辑区域',
     'delete-region': '删除区域',
+    'add-device': '新增设备点位',
     'move-device': '移动设备',
     'delete-device': '删除设备'
   }[tool] || '工具'
@@ -1455,6 +1728,7 @@ function getEditToolFeedback(tool) {
     'draw-polygon': '已进入新建多边形区域',
     'edit-region': '已进入区域编辑，点击区域开始编辑',
     'delete-region': '已进入删除区域，点击区域删除',
+    'add-device': '已进入新增设备，点击地图空白位置添加设备',
     'move-device': '已进入移动设备，拖动设备调整位置',
     'delete-device': '已进入删除设备，点击设备删除'
   }[tool] || `已切换到${getEditToolLabel(tool)}`
@@ -1587,46 +1861,77 @@ async function loadFloorMap(mapConfig = DEVICE_VISUALIZATION_MAPS[selectedMapId.
   try {
     mapError.value = ''
     recognitionDebug.value = null
+    mapWriteBlocked.value = false
+    resolvedFloorContext.value = null
+    const resolved = await resolveFloorHierarchy(config.hierarchyPath)
+    const floorId = resolved?.floorId || resolved?.FloorId || ''
+    if (!floorId) throw new Error('层级解析接口未返回 floorId')
+    resolvedFloorContext.value = {
+      floorId,
+      mapId: resolved?.mapId || resolved?.MapId || ''
+    }
 
-    const svgResponse = await fetch(config.svgUrl)
-    if (!svgResponse.ok) throw new Error(`底图请求失败: ${svgResponse.status}`)
+    const backendPackage = await getFloorMapPackage(floorId)
+    const map = backendPackage?.Map || {}
+    const mapStatus = String(map.Status || '').toUpperCase()
+    if (mapStatus === 'INVALID_FLOOR_RELATION') {
+      throw new Error('当前层级未关联有效的后端楼层节点')
+    }
+    const hasBackendSvg = Boolean(backendPackage?.Map?.SvgUrl)
+
+    if (!hasBackendSvg) {
+      const backendViewBox = normalizeViewBox(backendPackage?.Map?.ViewBox)
+      const emptyViewBox = backendViewBox?.width > 0 && backendViewBox?.height > 0
+        ? backendViewBox
+        : { x: 0, y: 0, width: 800, height: 600 }
+      mapMeta.value = createMetaFromBackendMapPackage(backendPackage || {}, config)
+      originalViewBox.value = emptyViewBox
+      currentViewBox.value = { ...originalViewBox.value }
+      mapMarkup.value = ''
+      applyOverlayData({ cuDevices: [], gwDevices: [], regions: [] }, { useLocalDraft: false })
+      mapError.value = mapStatus === 'EMPTY'
+        ? '当前楼层尚未导入 SVG 底图和设备属性表，请在配置调试模式完成导入。'
+        : '当前楼层地图信息不完整，请在配置调试模式重新导入。'
+      return
+    }
+
+    const svgUrl = resolveMapSvgUrl(backendPackage.Map.SvgUrl, backendPackage.Map.Version || backendPackage.Map.SvgHash)
+    const svgResponse = await fetch(svgUrl)
+    if (!svgResponse.ok) throw new Error(`后端底图资源未发布（HTTP ${svgResponse.status}）`)
 
     const svgText = await svgResponse.text()
     const parser = new DOMParser()
     const svgDoc = parser.parseFromString(svgText, 'image/svg+xml')
     const svgRoot = svgDoc.documentElement
-    let meta = null
-    let data = null
+    const data = backendPackage
+    const meta = createMetaFromBackendMapPackage(data, config)
 
-    if (config.metaUrl) {
-      meta = await fetchJson(config.metaUrl)
-      data = await fetchJson(meta.dataUrl || config.dataUrl)
-    } else {
-      data = await fetchJson(config.dataUrl)
-      meta = createMetaFromBackendMapPackage(data, config)
+    // API coordinates may be based on an import-time box that is smaller than
+    // the actual CAD drawing layer. Keep API identities, but recalibrate display
+    // coordinates against the current SVG's CAD-aligned drawable bounds.
+    const drawableBounds = getSvgDrawableBBox(svgRoot)
+    const structuralBounds = getSvgStructuralBBox(svgRoot, meta.coordinateTransform?.svgBounds)
+    const cadAlignedBounds = getSvgCadAlignedBBox(svgRoot, meta.coordinateTransform?.cadBounds)
+    const coordinateBounds = structuralBounds || cadAlignedBounds || drawableBounds
+    if (coordinateBounds) {
+      applyDrawableBoundsToBackendTransform(meta, coordinateBounds)
     }
 
     const parsedViewBox = normalizeViewBox(meta.viewBox) || parseViewBox(svgRoot)
-    const drawableBounds = getSvgDrawableBBox(svgRoot)
-    const cadAlignedBounds = getSvgCadAlignedBBox(svgRoot, meta.coordinateTransform?.cadBounds)
-
-    if (config.dataType === 'backendMapPackage' && (cadAlignedBounds || drawableBounds)) {
-      applyDrawableBoundsToBackendTransform(meta, cadAlignedBounds || drawableBounds)
-    }
-
     mapMeta.value = meta
+    const resolvedMapId = resolvedFloorContext.value.mapId
+    if (isUsableMapId(resolvedMapId) && isUsableMapId(meta.mapId) && resolvedMapId !== meta.mapId) {
+      mapWriteBlocked.value = true
+      commitDrawerMessage('层级解析结果与地图包 MapId 不一致，已禁止点位写入')
+    }
     originalViewBox.value = parsedViewBox
     currentViewBox.value = { ...parsedViewBox }
     normalizeFloorSvg(svgRoot)
     mapMarkup.value = svgRoot.innerHTML
 
-    const overlay = config.dataType === 'backendMapPackage'
-      ? buildBackendMapPackageOverlay(data)
-      : config.dataType === 'rawBackendMapPackage'
-        ? buildRawBackendMapPackageOverlay(data)
-        : buildFloorOverlay(data, meta)
+    const overlay = buildBackendMapPackageOverlay(data, { preferSvgCoordinates: false })
 
-    applyOverlayData(overlay)
+    applyOverlayData(overlay, { useLocalDraft: false })
     recognitionDebug.value = {
       regionCandidates: [],
       unmappedDeviceCandidates: [],
@@ -1640,11 +1945,14 @@ async function loadFloorMap(mapConfig = DEVICE_VISUALIZATION_MAPS[selectedMapId.
       }
     }
   } catch (error) {
-    console.error(error)
     mapMeta.value = null
     recognitionDebug.value = null
-    mapError.value = config.errorMessage
-    applyOverlayData({ cuDevices: [], gwDevices: [], regions: [] })
+    mapWriteBlocked.value = false
+    const loadErrorMessage = error?.message === 'Failed to fetch'
+      ? '后端底图资源不可访问（可能未发布或未配置跨域）'
+      : (error?.message || '未知错误')
+    mapError.value = `${config.errorMessage}：${loadErrorMessage}`
+    applyOverlayData({ cuDevices: [], gwDevices: [], regions: [] }, { useLocalDraft: false })
   }
 }
 
@@ -1657,10 +1965,13 @@ async function fetchJson(url) {
 function createMetaFromBackendMapPackage(data, config) {
   const map = data?.Map || {}
   return {
-    floorId: config.id,
+    floorId: map.FloorId || resolvedFloorId.value,
+    mapId: map.MapId || '',
+    status: map.Status || '',
     name: map.MapName || config.name,
-    svgUrl: config.svgUrl,
-    dataUrl: config.dataUrl,
+    svgUrl: map.SvgUrl ? resolveMapSvgUrl(map.SvgUrl, map.Version || map.SvgHash) : '',
+    rawSvgUrl: map.SvgUrl || '',
+    svgFileName: map.SvgUrl ? String(map.SvgUrl).split('/').pop() : '',
     viewBox: normalizeViewBox(map.ViewBox) || { x: 0, y: 0, width: 800, height: 600 },
     coordinateTransform: normalizeBackendCoordinateTransform(map.CoordinateTransform)
   }
@@ -1677,6 +1988,7 @@ function normalizeBackendCoordinateTransform(transform) {
     d: Number(transform.D ?? transform.d ?? 0),
     e: Number(transform.E ?? transform.e ?? 0),
     f: Number(transform.F ?? transform.f ?? 0),
+    flipY: Boolean(transform.FlipY ?? transform.flipY),
     cadBounds: normalizeBounds(transform.CadBounds || transform.cadBounds),
     svgBounds: normalizeBounds(transform.SvgBounds || transform.svgBounds)
   }
@@ -1810,21 +2122,8 @@ function getSvgCadAlignedBBox(svgRoot, cadBounds) {
   if (!cadBounds?.width || !cadBounds?.height) return null
 
   const targetRatio = cadBounds.width / cadBounds.height
-  const boxesByStroke = new Map()
-
-  svgRoot.querySelectorAll('path').forEach((pathNode) => {
-    const stroke = pathNode.getAttribute('stroke') || 'none'
-    const bbox = getPathDataBBox(pathNode.getAttribute('d') || '')
-    if (!bbox) return
-
-    const boxes = boxesByStroke.get(stroke) || []
-    boxes.push(bbox)
-    boxesByStroke.set(stroke, boxes)
-  })
-
-  const candidates = Array.from(boxesByStroke.entries())
-    .map(([stroke, boxes]) => {
-      const bbox = mergeBBoxes(boxes)
+  const candidates = getSvgStrokeGroupBBoxes(svgRoot)
+    .map(({ stroke, bbox }) => {
       const ratio = bbox?.height ? bbox.width / bbox.height : 0
       return {
         stroke,
@@ -1838,6 +2137,50 @@ function getSvgCadAlignedBBox(svgRoot, cadBounds) {
 
   const best = candidates[0]
   return best && best.ratioDiff <= 0.02 ? best.bbox : null
+}
+
+function getSvgStructuralBBox(svgRoot, apiSvgBounds) {
+  if (!apiSvgBounds?.width || !apiSvgBounds?.height) return null
+
+  const apiArea = getBBoxArea(apiSvgBounds)
+  // CAD converters may offset a drawing layer by several SVG units relative
+  // to the stored map bounds. Keep the match local to the API bounds while
+  // allowing that small export offset.
+  const tolerance = Math.max(2, Math.min(apiSvgBounds.width, apiSvgBounds.height) * 0.04)
+  const candidates = getSvgStrokeGroupBBoxes(svgRoot)
+    .filter(({ bbox }) => bbox?.width > 100 && bbox?.height > 100)
+    .filter(({ bbox }) => (
+      bbox.minX <= apiSvgBounds.minX + tolerance &&
+      bbox.minY <= apiSvgBounds.minY + tolerance &&
+      bbox.maxX >= apiSvgBounds.maxX - tolerance &&
+      bbox.maxY >= apiSvgBounds.maxY - tolerance
+    ))
+    .filter(({ bbox }) => (
+      bbox.width > apiSvgBounds.width * 1.02 ||
+      bbox.height > apiSvgBounds.height * 1.02
+    ))
+    .sort((left, right) => getBBoxArea(left.bbox) - getBBoxArea(right.bbox))
+
+  const best = candidates[0]
+  return best && getBBoxArea(best.bbox) >= apiArea * 1.02 ? best.bbox : null
+}
+
+function getSvgStrokeGroupBBoxes(svgRoot) {
+  const boxesByStroke = new Map()
+
+  svgRoot.querySelectorAll('path').forEach((pathNode) => {
+    const stroke = pathNode.getAttribute('stroke') || 'none'
+    const bbox = getPathDataBBox(pathNode.getAttribute('d') || '')
+    if (!bbox) return
+
+    const boxes = boxesByStroke.get(stroke) || []
+    boxes.push(bbox)
+    boxesByStroke.set(stroke, boxes)
+  })
+
+  return Array.from(boxesByStroke.entries())
+    .map(([stroke, boxes]) => ({ stroke, bbox: mergeBBoxes(boxes) }))
+    .filter(({ bbox }) => bbox)
 }
 
 function getBBoxArea(bbox) {
@@ -1896,27 +2239,32 @@ function buildFloorOverlay(data, meta) {
   }
 }
 
-function buildBackendMapPackageOverlay(data) {
+function buildBackendMapPackageOverlay(data, options = {}) {
+  const preferSvgCoordinates = options.preferSvgCoordinates !== false
   const relationByDeviceId = new Map(
     (Array.isArray(data?.Relations) ? data.Relations : []).map((relation) => [relation.MapDeviceId, relation])
   )
-  const validRegionCodes = new Set(
-    (Array.isArray(data?.Regions) ? data.Regions : [])
-      .filter((region) => (region.Points || region.SvgPoints || []).length >= 3)
-      .map((region) => region.Code || region.Name || region.Id)
-      .filter(Boolean)
-  )
   const sourceDevices = Array.isArray(data?.Devices) ? data.Devices : []
-  const mappedDevices = sourceDevices.map((device, index) => createDeviceFromBackendMapPackage(device, index, relationByDeviceId))
+  const mappedDevices = sourceDevices.map((device, index) => createDeviceFromBackendMapPackage(
+    device,
+    index,
+    relationByDeviceId,
+    { preferSvgCoordinates }
+  ))
   const cuList = mappedDevices.filter((device) => device.type === 'cu')
-  const gwList = mappedDevices.filter((device) => device.type === 'gw' && isBackendGwForValidRegion(device, validRegionCodes))
+  const gwList = mappedDevices.filter((device) => device.type === 'gw')
 
   const regionList = (Array.isArray(data?.Regions) ? data.Regions : [])
     .map((region, index) => {
-      const points = (region.Points || [])
+      const svgPoints = preferSvgCoordinates ? (region.SvgPoints || [])
         .map(normalizeBackendPoint)
-        .filter(Boolean)
-        .map((point) => cadToSvg(point))
+        .filter(Boolean) : []
+      const points = svgPoints.length
+        ? svgPoints
+        : (region.Points || [])
+            .map(normalizeBackendPoint)
+            .filter(Boolean)
+            .map((point) => cadToSvg(point))
       if (points.length < 3) return null
 
       return createRegion(region.Name || region.Code || region.Id, points, {
@@ -1977,14 +2325,15 @@ function buildRawBackendMapPackageOverlay(data) {
   }
 }
 
-function isBackendGwForValidRegion(device, validRegionCodes) {
-  if (!validRegionCodes.size) return true
-  const label = `${device.shortName || ''} ${device.name || ''}`
-  return Array.from(validRegionCodes).some((code) => label.includes(`${code}-GW`) || label.includes(`${code} Gateway`))
-}
-
 function createDeviceFromFloorData(sourceDevice, meta, index) {
-  const type = normalizeDeviceType(sourceDevice.type || sourceDevice.deviceType)
+  const rawType = sourceDevice.type || sourceDevice.deviceType || ''
+  const sourceFields = sourceDevice.sourceFields || {}
+  const icon = resolveDeviceIcon({
+    rawType,
+    name: sourceDevice.name || sourceDevice.shortName || sourceDevice.uniqueNo,
+    sourceFields
+  })
+  const type = icon.category === 'gateway' ? 'gw' : 'cu'
   const point = cadToSvg({ x: sourceDevice.cadX, y: sourceDevice.cadY }, meta)
   const defaultPower = type === 'cu'
 
@@ -1993,13 +2342,15 @@ function createDeviceFromFloorData(sourceDevice, meta, index) {
     name: sourceDevice.name || sourceDevice.sourceFields?.名称 || sourceDevice.shortName || sourceDevice.uniqueNo || `${type.toUpperCase()}-${index + 1}`,
     shortName: sourceDevice.shortName || sourceDevice.uniqueNo || `${type.toUpperCase()}-${index + 1}`,
     type,
-    icon: sourceDevice.icon,
-    iconUrl: getDeviceIconUrl({ type }),
+    rawType,
+    icon: icon.key,
+    iconUrl: icon.iconUrl,
+    iconCategory: icon.category,
     regionId: sourceDevice.sourceRegionId || sourceDevice.region || '',
     gatewayId: sourceDevice.sourceFields?.GWNO || sourceDevice.sourceRegionId || sourceDevice.region || '',
     zigbeeId: sourceDevice.sourceFields?.ZIGBEENO || '',
     sourceRow: sourceDevice.sourceRow,
-    sourceFields: sourceDevice.sourceFields || {},
+    sourceFields,
     cadX: Number(sourceDevice.cadX),
     cadY: Number(sourceDevice.cadY),
     x: point.x,
@@ -2017,10 +2368,19 @@ function createDeviceFromFloorData(sourceDevice, meta, index) {
   }
 }
 
-function createDeviceFromBackendMapPackage(sourceDevice, index, relationByDeviceId) {
-  const rawType = normalizeDeviceType(sourceDevice.Type || sourceDevice.DeviceType)
-  const type = rawType === 'gw' ? 'gw' : 'cu'
-  const point = cadToSvg({ x: sourceDevice.CadX, y: sourceDevice.CadY })
+function createDeviceFromBackendMapPackage(sourceDevice, index, relationByDeviceId, options = {}) {
+  const rawType = sourceDevice.Type || sourceDevice.DeviceType || ''
+  const sourceFields = sourceFieldsArrayToObject(sourceDevice.SourceFields)
+  const icon = resolveDeviceIcon({
+    rawType,
+    name: sourceDevice.Name || sourceDevice.UniqueNo,
+    sourceFields
+  })
+  const type = icon.category === 'gateway' ? 'gw' : 'cu'
+  const svgPoint = options.preferSvgCoordinates === false
+    ? null
+    : normalizeBackendPoint({ x: sourceDevice.X, y: sourceDevice.Y })
+  const point = svgPoint || cadToSvg({ x: sourceDevice.CadX, y: sourceDevice.CadY })
   const id = sourceDevice.Id || sourceDevice.UniqueNo || `${type}-${index + 1}`
   const relation = relationByDeviceId.get(id)
   const defaultPower = type === 'cu'
@@ -2030,14 +2390,15 @@ function createDeviceFromBackendMapPackage(sourceDevice, index, relationByDevice
     name: sourceDevice.Name || sourceDevice.UniqueNo || `${type.toUpperCase()}-${index + 1}`,
     shortName: sourceDevice.UniqueNo || sourceDevice.Name || `${type.toUpperCase()}-${index + 1}`,
     type,
-    rawType: sourceDevice.Type || '',
-    icon: type === 'gw' ? 'src/assets/images/devices/GW.png' : 'src/assets/images/devices/CU.png',
-    iconUrl: getDeviceIconUrl({ type }),
+    rawType,
+    icon: icon.key,
+    iconUrl: icon.iconUrl,
+    iconCategory: icon.category,
     regionId: relation?.RegionId || '',
     gatewayId: sourceDevice.GatewayId || sourceDevice.GWNO || relation?.GatewayId || relation?.RegionId || '',
     zigbeeId: sourceDevice.ZigbeeId || sourceDevice.ZigbeeNo || '',
     sourceRow: sourceDevice.SourceRow,
-    sourceFields: sourceFieldsArrayToObject(sourceDevice.SourceFields),
+    sourceFields,
     cadX: Number(sourceDevice.CadX),
     cadY: Number(sourceDevice.CadY),
     x: point.x,
@@ -2056,8 +2417,14 @@ function createDeviceFromBackendMapPackage(sourceDevice, index, relationByDevice
 }
 
 function createDeviceFromRawBackendMapPackage(sourceDevice, index, relationByDeviceId) {
-  const rawType = normalizeDeviceType(sourceDevice.Type || sourceDevice.DeviceType)
-  const type = rawType === 'gw' ? 'gw' : 'cu'
+  const rawType = sourceDevice.Type || sourceDevice.DeviceType || ''
+  const sourceFields = sourceFieldsArrayToObject(sourceDevice.SourceFields)
+  const icon = resolveDeviceIcon({
+    rawType,
+    name: sourceDevice.Name || sourceDevice.UniqueNo,
+    sourceFields
+  })
+  const type = icon.category === 'gateway' ? 'gw' : 'cu'
   const point = normalizeBackendPoint({ X: sourceDevice.X, Y: sourceDevice.Y }) || { x: 0, y: 0 }
   const id = sourceDevice.Id || sourceDevice.UniqueNo || `${type}-${index + 1}`
   const relation = relationByDeviceId.get(id)
@@ -2068,14 +2435,15 @@ function createDeviceFromRawBackendMapPackage(sourceDevice, index, relationByDev
     name: sourceDevice.Name || sourceDevice.UniqueNo || `${type.toUpperCase()}-${index + 1}`,
     shortName: sourceDevice.UniqueNo || sourceDevice.Name || `${type.toUpperCase()}-${index + 1}`,
     type,
-    rawType: sourceDevice.Type || '',
-    icon: type === 'gw' ? 'src/assets/images/devices/GW.png' : 'src/assets/images/devices/CU.png',
-    iconUrl: getDeviceIconUrl({ type }),
+    rawType,
+    icon: icon.key,
+    iconUrl: icon.iconUrl,
+    iconCategory: icon.category,
     regionId: relation?.RegionId || '',
     gatewayId: sourceDevice.GatewayId || sourceDevice.GWNO || relation?.GatewayId || relation?.RegionId || '',
     zigbeeId: sourceDevice.ZigbeeId || sourceDevice.ZigbeeNo || '',
     sourceRow: sourceDevice.SourceRow,
-    sourceFields: sourceFieldsArrayToObject(sourceDevice.SourceFields),
+    sourceFields,
     cadX: Number(sourceDevice.CadX),
     cadY: Number(sourceDevice.CadY),
     x: point.x,
@@ -2114,97 +2482,47 @@ function normalizeDeviceType(value) {
 }
 
 function getDeviceIconUrl(device) {
-  return device.type === 'gw' ? gwIconUrl : cuIconUrl
+  return device.iconUrl || resolveDeviceIcon(device).iconUrl
 }
 
 function getDeviceIconSize(device) {
-  return device.type === 'gw' ? 16 : 12
+  return getDeviceIconDisplay(device).iconSizeSvg
+}
+
+function getDeviceIconDisplay(device) {
+  return getDeviceIconDisplayConfig(device.iconCategory || resolveDeviceIcon(device).category)
 }
 
 function getDeviceVisibleBounds(device) {
   const size = getDeviceIconSize(device)
-  const bounds = deviceIconAlphaBounds.value[device.type] || DEFAULT_DEVICE_ICON_BOUNDS.cu
-  const imageX = device.x - size / 2
-  const imageY = device.y - size / 2
   return {
-    x: imageX + size * bounds.left,
-    y: imageY + size * bounds.top,
-    width: size * (bounds.right - bounds.left),
-    height: size * (bounds.bottom - bounds.top)
+    x: device.x - size / 2,
+    y: device.y - size / 2,
+    width: size,
+    height: size
   }
 }
 
 function getDeviceSelectionBounds(device) {
   const visible = getDeviceVisibleBounds(device)
-  const padding = device.type === 'gw' ? 0.35 : 0.25
-  return expandDeviceBounds(visible, padding)
+  const config = getDeviceIconDisplay(device)
+  return expandDeviceBounds(visible, config.selectionPaddingSvg, config.cornerRadiusSvg)
 }
 
 function getDeviceHitBounds(device) {
   const visible = getDeviceVisibleBounds(device)
-  const padding = device.type === 'gw' ? 2.2 : 1.5
-  return expandDeviceBounds(visible, padding)
+  const config = getDeviceIconDisplay(device)
+  return expandDeviceBounds(visible, config.hitPaddingSvg, config.cornerRadiusSvg)
 }
 
-function expandDeviceBounds(bounds, padding) {
+function expandDeviceBounds(bounds, padding, radius = 2) {
   return {
     x: bounds.x - padding,
     y: bounds.y - padding,
     width: bounds.width + padding * 2,
     height: bounds.height + padding * 2,
-    radius: Math.min(3, Math.max(1.5, Math.min(bounds.width, bounds.height) * 0.2))
+    radius: Math.min(radius, Math.min(bounds.width, bounds.height) * 0.2)
   }
-}
-
-async function loadDeviceIconBounds() {
-  const [cuBounds, gwBounds] = await Promise.all([
-    detectImageAlphaBounds(cuIconUrl, DEFAULT_DEVICE_ICON_BOUNDS.cu),
-    detectImageAlphaBounds(gwIconUrl, DEFAULT_DEVICE_ICON_BOUNDS.gw)
-  ])
-  deviceIconAlphaBounds.value = { cu: cuBounds, gw: gwBounds }
-}
-
-function detectImageAlphaBounds(url, fallback) {
-  return new Promise((resolve) => {
-    const image = new Image()
-    image.onload = () => {
-      try {
-        const canvas = document.createElement('canvas')
-        canvas.width = image.naturalWidth
-        canvas.height = image.naturalHeight
-        const context = canvas.getContext('2d', { willReadFrequently: true })
-        context.drawImage(image, 0, 0)
-        const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
-        let minX = canvas.width
-        let minY = canvas.height
-        let maxX = -1
-        let maxY = -1
-        for (let y = 0; y < canvas.height; y += 1) {
-          for (let x = 0; x < canvas.width; x += 1) {
-            if (pixels[(y * canvas.width + x) * 4 + 3] <= 16) continue
-            minX = Math.min(minX, x)
-            minY = Math.min(minY, y)
-            maxX = Math.max(maxX, x)
-            maxY = Math.max(maxY, y)
-          }
-        }
-        if (maxX < minX || maxY < minY) {
-          resolve(fallback)
-          return
-        }
-        resolve({
-          left: minX / canvas.width,
-          top: minY / canvas.height,
-          right: (maxX + 1) / canvas.width,
-          bottom: (maxY + 1) / canvas.height
-        })
-      } catch (error) {
-        resolve(fallback)
-      }
-    }
-    image.onerror = () => resolve(fallback)
-    image.src = url
-  })
 }
 
 function isActiveDevice(type, device) {
@@ -2262,11 +2580,24 @@ function svgToCad(point, meta = mapMeta.value) {
   return { x, y }
 }
 
-function applyOverlayData(overlay) {
+function applyOverlayData(overlay, { useLocalDraft = false } = {}) {
   activeDrawer.value = null
   focusedRegionId.value = ''
+  pendingDevicePositions.value = new Map()
   const floorId = selectedMapId.value
-  const mapState = loadMapState(DEVICE_MAP_PROJECT_ID, floorId, overlay)
+  let mapState
+  if (useLocalDraft) {
+    mapState = loadMapState(DEVICE_MAP_PROJECT_ID, floorId, overlay)
+  } else {
+    const serverDraft = createDraftFromOverlay(floorId, overlay.regions, [...overlay.cuDevices, ...overlay.gwDevices])
+    mapState = {
+      ...serverDraft,
+      cuDevices: overlay.cuDevices,
+      gwDevices: overlay.gwDevices,
+      regions: overlay.regions,
+      draftState: serverDraft
+    }
+  }
 
   cuDevices.value = mapState.cuDevices
   gwDevices.value = mapState.gwDevices
@@ -2497,6 +2828,12 @@ function setZoomLevel(nextScale) {
 
 function handleMapBlankClick(event) {
   const target = event.target
+  if (isConfigMode.value && activeEditTool.value === 'add-device') {
+    const point = clientToMapPoint(event)
+    if (point) void createMapDeviceAt(point)
+    return
+  }
+
   if (displayFocusedRegion.value && !target.classList?.contains('focus-dim')) return
   if (
     target === mapSvgRef.value ||
@@ -2809,9 +3146,7 @@ function handleOperationPrimary() {
     if (editDragState.value) {
       finishEditDrag({ button: 0 })
     }
-    activeEditTool.value = 'select'
-    closeConfigDrawer()
-    commitDrawerMessage('已保存区域编辑')
+    commitDrawerMessage('当前 API 仅支持设备点位保存，未提供区域边界保存接口')
   }
 }
 
@@ -3246,7 +3581,7 @@ function getResizedRegionGeometry(state, point) {
   return { points }
 }
 
-function finishEditDrag(event) {
+async function finishEditDrag(event) {
   if (event && event.button !== 0) return
   if (!editDragState.value) return
   const state = editDragState.value
@@ -3257,6 +3592,10 @@ function finishEditDrag(event) {
   draftState.value = {
     ...draftState.value,
     dirty: true
+  }
+
+  if (state.type === 'device' && hasActiveBackendMap()) {
+    commitDrawerMessage('设备点位已调整，请点击“保存设备点位”提交')
   }
 }
 
@@ -3287,6 +3626,51 @@ function updateDevicePosition(deviceId, point) {
     : device)
   cuDevices.value = cuDevices.value.map(updateDevice)
   gwDevices.value = gwDevices.value.map(updateDevice)
+
+  const nextPendingPositions = new Map(pendingDevicePositions.value)
+  nextPendingPositions.set(deviceId, {
+    id: deviceId,
+    x: Number(point.x.toFixed(4)),
+    y: Number(point.y.toFixed(4))
+  })
+  pendingDevicePositions.value = nextPendingPositions
+}
+
+async function createMapDeviceAt(point) {
+  if (!hasActiveBackendMap()) {
+    commitDrawerMessage('当前地图关系异常，不能新增设备点位')
+    return
+  }
+
+  const uniqueNo = String(window.prompt('请输入设备编号（UniqueNo）', '') || '').trim()
+  if (!uniqueNo) return
+  if ([...cuDevices.value, ...gwDevices.value].some((device) => device.shortName === uniqueNo || device.id === uniqueNo)) {
+    commitDrawerMessage('设备编号已存在')
+    return
+  }
+
+  const type = String(window.prompt('请输入设备类型，例如 CU、GW、OCSR、SCU-F、MCBOX', 'CU') || '').trim()
+  if (!type) return
+  const gatewayNo = String(window.prompt('请输入所属网关编号（可留空）', '') || '').trim()
+  const zigbeeNo = String(window.prompt('请输入 Zigbee 编号（可留空）', '') || '').trim()
+
+  try {
+    await createMapDevice(mapMeta.value.mapId, {
+      uniqueNo,
+      name: uniqueNo,
+      type,
+      gatewayNo,
+      zigbeeNo,
+      x: Number(point.x.toFixed(4)),
+      y: Number(point.y.toFixed(4)),
+      updatedBy: getMapOperator()
+    })
+    activeEditTool.value = 'select'
+    await loadFloorMap(selectedMapConfig.value)
+    commitDrawerMessage(`已新增设备点位 ${uniqueNo}`)
+  } catch (error) {
+    commitDrawerMessage(error.message || '新增设备点位失败')
+  }
 }
 
 function recalculateRegions(regionList) {
@@ -3369,9 +3753,21 @@ async function confirmRegionDialog(payload = {}) {
   }
 }
 
-function deleteDevice(device) {
+async function deleteDevice(device) {
   const confirmed = window.confirm(`确认删除设备 ${device.shortName || device.id}？`)
   if (!confirmed) return
+  if (mapWriteBlocked.value) {
+    commitDrawerMessage('当前地图关系异常，已禁止删除设备')
+    return
+  }
+  if (hasActiveBackendMap()) {
+    try {
+      await deleteMapDevice(mapMeta.value.mapId, device.id, getMapOperator())
+    } catch (error) {
+      commitDrawerMessage(error.message || '设备删除失败')
+      return
+    }
+  }
   recordMapHistory()
   cuDevices.value = cuDevices.value.filter((item) => item.id !== device.id)
   gwDevices.value = gwDevices.value.filter((item) => item.id !== device.id)
@@ -3379,6 +3775,61 @@ function deleteDevice(device) {
   draftState.value = removeDeviceFromDraft(draftState.value, device.id)
   clearActiveDevice()
   commitDrawerMessage(`已删除设备 ${device.shortName || device.id}`)
+}
+
+function hasActiveBackendMap() {
+  return Boolean(resolvedFloorId.value && mapMeta.value?.mapId && !mapWriteBlocked.value)
+}
+
+function isUsableMapId(value) {
+  return Boolean(value && value !== '00000000-0000-0000-0000-000000000000')
+}
+
+async function persistDevicePosition(deviceId) {
+  const pendingPosition = pendingDevicePositions.value.get(deviceId)
+  if (!pendingPosition) return
+  return saveBackendDevicePosition(mapMeta.value.mapId, deviceId, {
+    x: pendingPosition.x,
+    y: pendingPosition.y,
+    updatedBy: getMapOperator()
+  })
+}
+
+async function persistPendingDevicePositions() {
+  if (!hasActiveBackendMap() || devicePositionSyncBusy.value) return
+
+  const positions = Array.from(pendingDevicePositions.value.values())
+  if (!positions.length) return
+
+  devicePositionSyncBusy.value = true
+  try {
+    if (positions.length === 1) {
+      await persistDevicePosition(positions[0].id)
+    } else {
+      await saveBackendDevicePositions(
+        mapMeta.value.mapId,
+        positions.map((position) => ({
+          deviceId: position.id,
+          x: position.x,
+          y: position.y
+        })),
+        getMapOperator()
+      )
+    }
+
+    pendingDevicePositions.value = new Map()
+    draftState.value = { ...draftState.value, dirty: false, currentDraftState: 'saved' }
+    await loadFloorMap(selectedMapConfig.value)
+    commitDrawerMessage(positions.length === 1 ? '设备点位已保存' : `已批量保存 ${positions.length} 个设备点位`)
+  } catch (error) {
+    commitDrawerMessage(error.message || '设备点位保存失败，请调整后重试')
+  } finally {
+    devicePositionSyncBusy.value = false
+  }
+}
+
+function getMapOperator() {
+  return window.localStorage.getItem('userName') || window.localStorage.getItem('username') || ''
 }
 
 function openConfigDrawer(target, targetType = 'area', tab = 'base') {
@@ -4092,14 +4543,94 @@ function clamp(value, min, max) {
   margin-left: auto;
 }
 
-.layer-switch {
+.device-filter {
+  position: relative;
+}
+
+.device-filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 108px;
+  max-width: 190px;
+}
+
+.device-filter-trigger > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-filter-arrow {
+  color: var(--accent-cyan);
+  font-size: 14px;
+  line-height: 1;
+  transition: transform 0.16s ease;
+}
+
+.device-filter-trigger.active .device-filter-arrow {
+  transform: rotate(180deg);
+}
+
+.device-filter-menu {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  min-width: 136px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 7px;
+  border: 1px solid rgba(89, 227, 255, 0.26);
+  border-radius: 10px;
+  background: rgba(6, 21, 37, 0.98);
+  box-shadow: 0 12px 28px rgba(2, 10, 20, 0.34);
+}
+
+.device-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 7px;
+  border-radius: 6px;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.device-filter-option:hover {
+  background: rgba(89, 227, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.device-filter-option.all {
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(89, 227, 255, 0.14);
+  color: var(--accent-cyan);
+}
+
+.device-filter-option input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent-teal);
+}
+
+.map-import-actions {
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
 
-.layer-btn {
-  min-width: 52px;
+.map-file-input {
+  display: none;
+}
+
+.import-btn {
+  min-width: 102px;
 }
 
 .zoom-chip,
@@ -4156,6 +4687,19 @@ function clamp(value, min, max) {
     0 14px 30px rgba(5, 13, 24, 0.18);
 }
 
+.map-shell.is-default-mode {
+  border-color: rgba(85, 216, 255, 0.46);
+  background:
+    radial-gradient(circle at 16% 12%, rgba(85, 216, 255, 0.16), transparent 34%),
+    radial-gradient(circle at 86% 92%, rgba(77, 159, 255, 0.15), transparent 42%),
+    linear-gradient(145deg, var(--bg-surface-2) 0%, var(--bg-surface-1) 48%, var(--bg-page-deep) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(188, 240, 255, 0.18),
+    inset 0 0 0 1px rgba(85, 216, 255, 0.1),
+    0 14px 30px rgba(0, 5, 14, 0.28),
+    0 0 24px rgba(85, 216, 255, 0.08);
+}
+
 .map-backdrop {
   position: absolute;
   inset: 0;
@@ -4163,6 +4707,15 @@ function clamp(value, min, max) {
     linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent 46%),
     radial-gradient(circle at 50% 100%, rgba(180, 186, 194, 0.2), transparent 66%);
   pointer-events: none;
+}
+
+.map-shell.is-default-mode .map-backdrop {
+  background:
+    linear-gradient(rgba(105, 176, 235, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(105, 176, 235, 0.05) 1px, transparent 1px),
+    radial-gradient(circle at 50% 6%, rgba(85, 216, 255, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(85, 216, 255, 0.06), transparent 38%);
+  background-size: 36px 36px, 36px 36px, auto, auto;
 }
 
 .map-svg {
@@ -4191,9 +4744,18 @@ function clamp(value, min, max) {
   fill: transparent;
 }
 
+.map-shell.is-default-mode .map-base-bg {
+  fill: rgba(4, 12, 23, 0.46);
+}
+
 .map-floor-layer {
   opacity: 0.84;
   filter: none;
+}
+
+.map-shell.is-default-mode .map-floor-layer {
+  opacity: 0.88;
+  filter: drop-shadow(0 0 2px rgba(85, 216, 255, 0.16));
 }
 
 .map-floor-layer.crisp {
@@ -4202,6 +4764,14 @@ function clamp(value, min, max) {
 
 .map-floor-layer.detail {
   opacity: 0.94;
+}
+
+.map-shell.is-default-mode .map-floor-layer.crisp {
+  opacity: 0.92;
+}
+
+.map-shell.is-default-mode .map-floor-layer.detail {
+  opacity: 0.96;
 }
 
 :deep(.map-floor-layer path),
@@ -4214,6 +4784,16 @@ function clamp(value, min, max) {
   shape-rendering: geometricPrecision;
   text-rendering: geometricPrecision;
   vector-effect: non-scaling-stroke;
+}
+
+.map-shell.is-default-mode :deep(.map-floor-layer [stroke]:not([stroke='none'])) {
+  stroke: var(--accent-cyan);
+  stroke-opacity: 0.62;
+}
+
+.map-shell.is-default-mode :deep(.map-floor-layer [fill]:not([fill='none'])) {
+  fill: var(--accent-blue);
+  fill-opacity: 0.1;
 }
 
 .interactive-node {

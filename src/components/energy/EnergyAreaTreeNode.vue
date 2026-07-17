@@ -17,7 +17,7 @@
       <span v-else class="arrow placeholder"></span>
       <span class="node-icon">{{ node.icon }}</span>
       <span class="node-text">{{ node.label }}</span>
-      <span v-if="depth === 2" class="level-tag">整栋</span>
+      <span v-if="levelTag" class="level-tag">{{ levelTag }}</span>
     </button>
 
     <div v-if="hasChildren" v-show="isExpanded" class="tree-children">
@@ -44,15 +44,22 @@ const props = defineProps({
   depth: { type: Number, default: 0 },
   expandedIds: { type: Object, required: true },
   selectedId: { type: String, default: '' },
-  mapConfig: { type: Object, required: true }
+  mapConfig: { type: Object, default: () => ({}) }
 })
 
 const emit = defineEmits(['toggle', 'select'])
 
 const hasChildren = computed(() => Boolean(props.node.children?.length))
 const isExpanded = computed(() => props.expandedIds.has(props.node.id))
-const isSelectable = computed(() => props.depth === 2 || Boolean(props.node.mapId))
+const isSelectable = computed(() => Boolean(props.node.locationId))
 const isDisabled = computed(() => Boolean(props.node.mapId && props.mapConfig[props.node.mapId]?.available === false))
+const levelTag = computed(() => ({
+  company: '公司',
+  site: '站点',
+  building: '建筑',
+  storey: '楼层',
+  area: '区域'
+}[props.node.level] || ''))
 
 function handleNodeClick() {
   if (isSelectable.value) {

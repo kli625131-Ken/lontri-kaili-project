@@ -102,6 +102,7 @@ const regionTools = [
 ]
 
 const deviceTools = [
+  { label: '新增设备', hint: '点击地图空白位置添加设备', icon: 'add', value: 'add-device' },
   { label: '移动设备', hint: '拖动设备点位', icon: 'move', value: 'move-device' },
   { label: '删除设备', hint: '点击设备删除', icon: 'trash', value: 'delete-device' }
 ]
@@ -118,7 +119,8 @@ const railTools = [
   regionTools[4],
   regionTools[5],
   deviceTools[0],
-  deviceTools[1]
+  deviceTools[1],
+  deviceTools[2]
 ]
 
 const iconPaths = {
@@ -128,6 +130,7 @@ const iconPaths = {
   poly: ['M12 4.5 19 8.5v7L12 19.5 5 15.5v-7z'],
   pencil: ['M5 17.5 6.2 13.4 15.6 4l4.4 4.4-9.4 9.4-4.1 1.2z', 'M13.8 5.8l4.4 4.4'],
   regionTrash: ['M7 7h10M9 7V5.5h6V7M8.5 9.5v8h7v-8', 'M5.5 19h13'],
+  add: ['M12 5v14M5 12h14'],
   trash: ['M7 8h10M10 8V6h4v2M8.5 10v8h7v-8'],
   move: ['M12 4v16M4 12h16M8 8l4-4 4 4M8 16l4 4 4-4M8 8l-4 4 4 4M16 8l4 4-4 4']
 }

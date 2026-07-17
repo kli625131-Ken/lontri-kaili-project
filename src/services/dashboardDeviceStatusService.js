@@ -1,88 +1,60 @@
-import {
-  DEVICE_VISUALIZATION_MAPS,
-  DEVICE_VISUALIZATION_MAP_TREE
-} from '../config/deviceVisualizationMaps.js'
-import { queryAlarms } from './systemLogsApi.js'
+import { requestIotJson, unwrapWcfData } from './iotRestClient.js'
+import { queryAlarmsFromApi } from './systemLogsApi.js'
 import { adaptAlarm } from '../utils/systemLogsAdapters.js'
+import { DEVICE_VISUALIZATION_MAPS } from '../config/deviceVisualizationMaps.js'
+import { getFloorMapPackage, resolveFloorHierarchy } from './deviceMapApi.js'
 
-const DEFAULT_SCOPE = '开利101车间'
-const DEFAULT_MAP_ID = 'floor1'
-
-export function createEmptyDashboardDeviceStatus(mapId = DEFAULT_MAP_ID) {
+export function createEmptyDashboardDeviceStatus() {
   return {
-    scope: { mapId, name: DEFAULT_SCOPE },
-    inventory: { total: 0, cu: 0, gw: 0, regions: 0, floors: 0, totalArea: 0 },
-    connectivity: { available: false, online: null, offline: null, onlineRate: null },
-    alarms: { total: 0, pending: 0, processed: 0, closed: 0, pendingList: [] },
-    updatedAt: null,
-    errors: { inventory: '', alarms: '' }
-  }
-}
-
-export function summarizeDeviceInventory(mapData = {}, mapId = DEFAULT_MAP_ID) {
-  const devices = getDevices(mapData)
-  const regions = getRegions(mapData)
-  const byType = devices.reduce((counts, device) => {
-    const type = normalizeDeviceType(device)
-    if (type === 'cu') counts.cu += 1
-    if (type === 'gw') counts.gw += 1
-    return counts
-  }, { cu: 0, gw: 0 })
-
-  return {
-    inventory: {
-      total: devices.length,
-      cu: byType.cu,
-      gw: byType.gw,
-      regions: regions.length,
-      floors: countProjectFloors(DEVICE_VISUALIZATION_MAP_TREE, mapId),
-      totalArea: Math.round(sumRegionArea(regions))
+    connectivity: {
+      available: false,
+      online: null,
+      offline: null,
+      onlineRate: null,
+      gatewayTotal: null,
+      gatewayOnline: null,
+      deviceTotal: null,
+      deviceOnline: null,
+      scopeVerified: false,
+      scopeNote: ''
     },
-    connectivity: summarizeConnectivity(devices)
-  }
-}
-
-export function summarizeAlarms(rawAlarms = [], total = rawAlarms.length) {
-  const alarms = rawAlarms.map((alarm) => (
-    alarm?.raw && typeof alarm.actionable === 'boolean' ? alarm : adaptAlarm(alarm)
-  ))
-  const pending = alarms.filter((alarm) => alarm.actionable)
-  const processed = alarms.filter((alarm) => alarm.status === 'processed').length
-  const closed = alarms.filter((alarm) => alarm.status === 'closed').length
-
-  return {
-    total: Number(total) || alarms.length,
-    pending: pending.length,
-    processed,
-    closed,
-    pendingList: pending
-      .sort(comparePendingAlarms)
-      .slice(0, 4)
+    alarms: {
+      total: null,
+      pending: null,
+      processed: null,
+      closed: null,
+      pendingList: [],
+      statusSummaryComplete: false,
+      scopeVerified: false,
+      scopeNote: ''
+    },
+    area: {
+      available: false,
+      totalSquareMeters: null,
+      mappedFloors: 0,
+      scopeNote: ''
+    },
+    updatedAt: null,
+    errors: { connectivity: '', alarms: '', area: '' }
   }
 }
 
 export async function loadDashboardDeviceStatus({
-  mapId = DEFAULT_MAP_ID,
-  fetchImpl = globalThis.fetch,
-  queryAlarmsImpl = queryAlarms,
+  queryOnlineImpl = loadGatewayAndDevicesOnlineCount,
+  queryAlarmsImpl = queryAlarmsFromApi,
   now = () => new Date()
 } = {}) {
-  const overview = createEmptyDashboardDeviceStatus(mapId)
-  const mapConfig = DEVICE_VISUALIZATION_MAPS[mapId]
-  overview.scope = { mapId, name: DEFAULT_SCOPE }
-
-  const inventoryRequest = loadInventory(mapConfig, fetchImpl)
-  const alarmsRequest = loadAlarms(queryAlarmsImpl)
-  const [inventoryResult, alarmsResult] = await Promise.allSettled([
-    inventoryRequest,
-    alarmsRequest
+  const overview = createEmptyDashboardDeviceStatus()
+  const [onlineResult, alarmsResult, areaResult] = await Promise.allSettled([
+    queryOnlineImpl(),
+    loadAlarms(queryAlarmsImpl),
+    loadConfiguredMapArea()
   ])
 
-  if (inventoryResult.status === 'fulfilled') {
-    overview.inventory = inventoryResult.value.inventory
-    overview.connectivity = inventoryResult.value.connectivity
+  if (onlineResult.status === 'fulfilled') {
+    overview.connectivity = onlineResult.value
   } else {
-    overview.errors.inventory = getErrorMessage(inventoryResult.reason, '设备清单加载失败')
+    overview.errors.connectivity = getErrorMessage(onlineResult.reason, '设备在线状态加载失败')
   }
 
   if (alarmsResult.status === 'fulfilled') {
@@ -91,112 +63,132 @@ export async function loadDashboardDeviceStatus({
     overview.errors.alarms = getErrorMessage(alarmsResult.reason, '设备告警加载失败')
   }
 
-  if (inventoryResult.status === 'fulfilled' || alarmsResult.status === 'fulfilled') {
-    overview.updatedAt = now().toISOString()
+  if (areaResult.status === 'fulfilled') {
+    overview.area = areaResult.value
+  } else {
+    overview.errors.area = getErrorMessage(areaResult.reason, '数字地图面积计算失败')
   }
 
+  if ([onlineResult, alarmsResult, areaResult].some((result) => result.status === 'fulfilled')) {
+    overview.updatedAt = now().toISOString()
+  }
   return overview
 }
 
-async function loadInventory(mapConfig, fetchImpl) {
-  if (!mapConfig?.available || !mapConfig.dataUrl) {
-    throw new Error('当前项目地图数据不可用')
-  }
-  if (typeof fetchImpl !== 'function') {
-    throw new Error('当前环境不支持设备清单请求')
+export async function loadConfiguredMapArea() {
+  const mapConfigs = Object.values(DEVICE_VISUALIZATION_MAPS)
+    .filter((config) => config?.available && config?.hierarchyPath)
+  if (!mapConfigs.length) throw new Error('当前项目未配置可用数字地图')
+
+  const mapPackages = await Promise.all(mapConfigs.map(async (config) => {
+    const resolved = await resolveFloorHierarchy(config.hierarchyPath)
+    const floorId = resolved?.floorId || resolved?.FloorId
+    if (!floorId) throw new Error(`${config.name || config.id} 未返回 floorId`)
+    return getFloorMapPackage(floorId)
+  }))
+  const floorAreas = mapPackages.map(calculateMapPackageArea)
+  if (floorAreas.some((area) => area === null)) {
+    throw new Error('数字地图缺少有效 CAD 尺寸或区域坐标')
   }
 
-  const response = await fetchImpl(mapConfig.dataUrl)
-  if (!response?.ok) {
-    throw new Error(mapConfig.errorMessage || `设备清单请求失败（${response?.status || '-'}）`)
+  return {
+    available: true,
+    totalSquareMeters: floorAreas.reduce((sum, area) => sum + area, 0),
+    mappedFloors: floorAreas.length,
+    scopeNote: `面积由 ${floorAreas.length} 个已配置 SVG 地图的 CAD 尺寸计算`
   }
-  return summarizeDeviceInventory(await response.json(), mapConfig.id)
 }
 
-async function loadAlarms(queryAlarmsImpl) {
-  const response = await queryAlarmsImpl({ page: 1, pageSize: 100 })
-  if (response?.success !== true) {
-    throw new Error(response?.message || '设备告警请求失败')
+export function calculateMapPackageArea(mapPackage = {}) {
+  const cadBounds = mapPackage?.Map?.CoordinateTransform?.CadBounds
+    || mapPackage?.Map?.coordinateTransform?.cadBounds
+  const width = toNumber(cadBounds?.Width ?? cadBounds?.width)
+  const height = toNumber(cadBounds?.Height ?? cadBounds?.height)
+  // Digital-map CAD coordinates are millimetres. Convert mm² to m².
+  if (width !== null && height !== null && width > 0 && height > 0) {
+    return (width * height) / 1_000_000
   }
-  return summarizeAlarms(Array.isArray(response.data) ? response.data : [], response.total)
+
+  const regions = Array.isArray(mapPackage?.Regions)
+    ? mapPackage.Regions
+    : (Array.isArray(mapPackage?.regions) ? mapPackage.regions : [])
+  if (!regions.length) return null
+  const squareMillimetres = regions.reduce((sum, region) => {
+    const points = Array.isArray(region?.Points)
+      ? region.Points
+      : (Array.isArray(region?.points) ? region.points : [])
+    if (points.length < 3) return sum
+    const doubledArea = points.reduce((area, point, index) => {
+      const next = points[(index + 1) % points.length]
+      const x = toNumber(point?.X ?? point?.x)
+      const y = toNumber(point?.Y ?? point?.y)
+      const nextX = toNumber(next?.X ?? next?.x)
+      const nextY = toNumber(next?.Y ?? next?.y)
+      if ([x, y, nextX, nextY].some((value) => value === null)) return area
+      return area + x * nextY - nextX * y
+    }, 0)
+    return sum + Math.abs(doubledArea) / 2
+  }, 0)
+  return squareMillimetres > 0 ? squareMillimetres / 1_000_000 : null
 }
 
-function summarizeConnectivity(devices) {
-  const statuses = devices.map(readExplicitOnlineStatus)
-  const available = devices.length > 0 && statuses.every((status) => status !== null)
-  if (!available) {
-    return { available: false, online: null, offline: null, onlineRate: null }
-  }
+export async function loadGatewayAndDevicesOnlineCount() {
+  const response = await requestIotJson('/getgatewayanddevicesonlinecount', {
+    method: 'POST'
+  })
+  if (response?.success === false) throw new Error(response.message || '在线设备接口返回失败')
 
-  const online = statuses.filter(Boolean).length
-  const offline = statuses.length - online
+  const raw = unwrapWcfData(response) || {}
+  const gatewayTotal = toNumber(raw.gatewayCount)
+  const gatewayOnline = toNumber(raw.gatewayOnlineCount)
+  const deviceTotal = toNumber(raw.deviceCount)
+  const deviceOnline = toNumber(raw.deviceOnlineCount)
+  const counts = [gatewayTotal, gatewayOnline, deviceTotal, deviceOnline]
+  if (counts.some((value) => value === null)) throw new Error('在线设备接口返回字段缺失')
+
+  const total = gatewayTotal + deviceTotal
+  const online = gatewayOnline + deviceOnline
+  const offline = Math.max(total - online, 0)
   return {
     available: true,
     online,
     offline,
-    onlineRate: Math.round((online / statuses.length) * 100)
+    onlineRate: total > 0 ? Number(((online / total) * 100).toFixed(1)) : 0,
+    gatewayTotal,
+    gatewayOnline,
+    deviceTotal,
+    deviceOnline,
+    // The real endpoint has no location parameter. Sending a Lontri id produces
+    // the same result, so the backend still needs to confirm its statistics scope.
+    scopeVerified: false,
+    scopeNote: '在线接口未提供 locationId 参数，当前统计范围待后端确认'
   }
 }
 
-function readExplicitOnlineStatus(device) {
-  const candidates = ['online', 'isOnline', 'Online', 'IsOnline']
-  for (const key of candidates) {
-    if (Object.prototype.hasOwnProperty.call(device, key) && typeof device[key] === 'boolean') {
-      return device[key]
-    }
+export function summarizeAlarms(rawAlarms = [], total = rawAlarms.length) {
+  const alarms = rawAlarms.map((alarm) => (
+    alarm?.raw && typeof alarm.actionable === 'boolean' ? alarm : adaptAlarm(alarm)
+  ))
+  const normalizedTotal = toNumber(total) ?? alarms.length
+  const statusSummaryComplete = normalizedTotal <= alarms.length
+  const pending = alarms.filter((alarm) => alarm.actionable)
+
+  return {
+    total: normalizedTotal,
+    pending: statusSummaryComplete ? pending.length : null,
+    processed: statusSummaryComplete ? alarms.filter((alarm) => alarm.status === 'processed').length : null,
+    closed: statusSummaryComplete ? alarms.filter((alarm) => alarm.status === 'closed').length : null,
+    pendingList: pending.sort(comparePendingAlarms).slice(0, 4),
+    statusSummaryComplete,
+    scopeVerified: false,
+    scopeNote: '告警接口未提供 locationId 筛选条件，当前统计范围待后端确认'
   }
-  return null
 }
 
-function getDevices(mapData) {
-  if (Array.isArray(mapData.devices)) return mapData.devices
-  if (Array.isArray(mapData.Devices)) return mapData.Devices
-  return []
-}
-
-function getRegions(mapData) {
-  if (Array.isArray(mapData.regions)) return mapData.regions
-  if (Array.isArray(mapData.Regions)) return mapData.Regions
-  return []
-}
-
-function countProjectFloors(nodes, mapId) {
-  for (const node of nodes) {
-    const children = Array.isArray(node.children) ? node.children : []
-    const floorNodes = children.filter((child) => child.mapId)
-    if (floorNodes.some((floor) => floor.mapId === mapId)) return floorNodes.length
-
-    const nestedCount = countProjectFloors(children, mapId)
-    if (nestedCount) return nestedCount
-  }
-  return 0
-}
-
-function sumRegionArea(regions) {
-  const squareCadUnits = regions.reduce((sum, region) => {
-    const points = Array.isArray(region.points) ? region.points : []
-    if (points.length < 3) return sum
-
-    const doubledArea = points.reduce((area, point, index) => {
-      const nextPoint = points[(index + 1) % points.length]
-      const x = Number(point.x)
-      const y = Number(point.y)
-      const nextX = Number(nextPoint.x)
-      const nextY = Number(nextPoint.y)
-      if (![x, y, nextX, nextY].every(Number.isFinite)) return area
-      return area + x * nextY - nextX * y
-    }, 0)
-
-    return sum + Math.abs(doubledArea) / 2
-  }, 0)
-
-  return squareCadUnits / 1_000_000
-}
-
-function normalizeDeviceType(device) {
-  return String(device?.type ?? device?.deviceType ?? device?.Type ?? device?.DeviceType ?? '')
-    .trim()
-    .toLowerCase()
+async function loadAlarms(queryAlarmsImpl) {
+  const response = await queryAlarmsImpl({ page: 1, pageSize: 100 })
+  if (response?.success !== true) throw new Error(response?.message || '设备告警请求失败')
+  return summarizeAlarms(Array.isArray(response.data) ? response.data : [], response.total)
 }
 
 function comparePendingAlarms(left, right) {
@@ -213,6 +205,12 @@ function getAlarmLevel(alarm) {
 function getAlarmTime(alarm) {
   const timestamp = Date.parse(alarm.lastOccurTime)
   return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
 }
 
 function getErrorMessage(error, fallback) {
